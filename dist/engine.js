@@ -1,4 +1,4 @@
-import {FORT_WORLD,FORT_WALLS,SKINS,RELICS,createMazeLevel} from './levels.js';
+import {FORT_WORLD,FORT_WALLS,SKINS,RELICS,createMazeLevel,createForestLevel} from './levels.js';
 
 export const WORLD={w:FORT_WORLD.w,h:FORT_WORLD.h};
 export const WALLS=FORT_WALLS.map(w=>({...w}));
@@ -100,7 +100,7 @@ function statsFor(skin,bonus){
   shieldCost:base.shieldCost,
   energyDrain:base.energyDrain,
   energyRegen:base.energyRegen,
-  regen:base.regen
+  regen:base.regen+(bonus.regen||0)
  };
 }
 
@@ -123,15 +123,18 @@ export class Game{
   this.chosenSkin='';
   this.secrets=0;
   this.seen=new Set();
-  this.bonus={dmg:0,range:0};
+  this.bonus={dmg:0,range:0,regen:0};
   this.events=[];
   this.bullets=[];
   this.effects=[];
   this.enemies=[];
   this.pickups=[];
   this.relics=[];
+  this.hazards=[];
   this.hermit={x:0,y:0,r:22};
+  this.warden=null;
   if(this.mission==='maze')this.setupMaze();
+  else if(this.mission==='forest')this.setupForest();
   else this.setupFort();
   this.markSeen(true);
  }
@@ -158,34 +161,53 @@ export class Game{
   this.relics=level.relics.map(r=>({...r}));
   for(const e of level.enemies)this.spawn(e.type,e.x,e.y);
  }
+ setupForest(){
+  const level=createForestLevel();
+  applyGeometry(level.world,level.walls);
+  this.forest=level;
+  this.player={x:level.start.x,y:level.start.y,r:22,hp:100,maxHp:100,energy:100,angle:-Math.PI/2,inv:0,cd:0,swing:0,moving:false,shield:false,skin:'warrior'};
+  this.ally={x:level.start.x+40,y:level.start.y+12,r:20,hp:100,maxHp:100,angle:-Math.PI/2,inv:0,cd:0,moving:false,waiting:true};
+  this.exit=level.exit;
+  this.hermit={x:-999,y:-999,r:22};
+  this.pickups=level.pickups.map(p=>({...p}));
+  this.relics=[];
+  this.hazards=[];
+  for(const e of level.enemies)this.spawn(e.type,e.x,e.y);
+  this.spawn('warden',level.warden.x,level.warden.y);
+  this.warden=this.enemies.find(e=>e.type==='warden')||null;
+ }
  applyCollection(skin,relicIds=[]){
   if(SKINS[skin])this.player.skin=skin;
-  this.bonus={dmg:0,range:0};
+  this.bonus={dmg:0,range:0,regen:0};
   for(const id of relicIds){
    const relic=RELICS[id];
    if(!relic)continue;
    this.bonus.dmg+=relic.dmg||0;
    this.bonus.range+=relic.range||0;
+   this.bonus.regen+=relic.regen||0;
   }
   if(this.mission==='maze')this.relics=this.relics.filter(r=>!relicIds.includes(r.id));
  }
  spawn(type,x,y){
   const boss=type==='boss';
   const beast=type==='beast';
+  const warden=type==='warden';
   this.enemies.push({
    type,x,y,
-   r:boss?26:beast?23:20,
-   hp:boss?210:beast?86:type==='melee'?60:55,
-   maxHp:boss?210:beast?86:type==='melee'?60:55,
-   cd:.8+(x%5)*.2,inv:0,angle:0,wind:0,active:false,stagger:0,moving:false,leap:0
+   r:warden?34:boss?26:beast?23:20,
+   hp:warden?480:boss?210:beast?86:type==='melee'?60:55,
+   maxHp:warden?480:boss?210:beast?86:type==='melee'?60:55,
+   cd:.8+(x%5)*.2,inv:0,angle:0,wind:0,active:false,stagger:0,moving:false,leap:0,
+   open:0,bundleBroken:false,move:'idle',pattern:0,smashIn:0,chargeT:0
   });
  }
  emit(text){this.events.push(text)}
  begin(mission='fort'){
-  this.mission=mission==='maze'?'maze':'fort';
+  this.mission=mission==='maze'?'maze':mission==='forest'?'forest':'fort';
   this.reset();
   this.state='playing';
   if(this.mission==='maze')this.emit('Ковбой ждёт у входа. Лабиринт — твоё испытание. Найди Хранителя.');
+  else if(this.mission==='forest')this.emit('Ковбой на опушке. В глубине — Страж леса. Щит ловит брёвна. Бей, когда вязанка открылась.');
   else this.emit('Ковбой в дальнем дворе. Щит: пробел. Удар: мышь или F.');
  }
  stats(){return statsFor(this.player.skin,this.bonus)}
@@ -220,6 +242,7 @@ export class Game{
  }
  interact(){
   if(this.mission==='maze')return this.talkHermit();
+  if(this.mission==='forest')return false;
   return this.free();
  }
  finish(win,why=''){
@@ -264,15 +287,23 @@ export class Game{
     return;
    }
   }
+  if(this.enemies.includes(target)&&target.type==='warden'&&!target.bundleBroken&&!(target.open>0)){
+   damage=Math.max(1,Math.floor(damage*.28));
+   this.effect(target.x,target.y-82,'ДРОВА','#8a6a32');
+  }
   target.hp=Math.max(0,target.hp-damage);
-  target.inv=target===this.player?.75:target===this.ally?.85:.18;
-  target.stagger=.25;
+  target.inv=target===this.player?.75:target===this.ally?.85:target.type==='warden'?.12:.18;
+  target.stagger=target.type==='warden'?.12:.25;
   this.effect(target.x,target.y-65,'−'+damage);
   if(target.hp===0&&this.enemies.includes(target)){
    this.kills++;
    this.effect(target.x,target.y-60,'✓','#52705d');
+   if(target.type==='warden'){
+    this.emit('Страж леса пал. Лес выдохнул.');
+    this.finish(true);
+   }
   }
-  if(this.player.hp<=0)this.finish(false,this.mission==='maze'?'Ты пал в коридорах. Щит к твари, удар в паузу между рогами.':'Воин пал. Поднимай щит перед выстрелом и наступай во время перезарядки.');
+  if(this.player.hp<=0)this.finish(false,this.mission==='maze'?'Ты пал в коридорах. Щит к твари, удар в паузу между рогами.':this.mission==='forest'?'Страж сломал тебя. Щит ловит брёвна, удар — когда вязанка открылась.':'Воин пал. Поднимай щит перед выстрелом и наступай во время перезарядки.');
   else if(this.mission==='fort'&&this.ally.hp<=0)this.finish(false,'Напарник пал. Держись ближе и встречай выстрелы щитом.');
  }
  fire(e,target,friendly=false){
@@ -284,8 +315,99 @@ export class Game{
   }
   this.effects.push({x:e.x,y:e.y-28,text:'',color:friendly?'#38a1b0':'#e6ad35',t:.13,max:.13,flash:true});
  }
+ wardenThrow(e,aim,rage){
+  const a=Math.atan2(aim.y-e.y,aim.x-e.x);
+  const n=rage?5:3;
+  for(let i=0;i<n;i++){
+   const angle=a+(i-(n-1)/2)*(rage?.18:.22);
+   this.bullets.push({x:e.x+Math.cos(angle)*36,y:e.y+Math.sin(angle)*36,dx:Math.cos(angle),dy:Math.sin(angle),speed:rage?240:190,life:2.8,friendly:false,damage:rage?13:11,kind:'log',r:12});
+  }
+  this.effects.push({x:e.x,y:e.y-28,text:'',color:'#7a4e22',t:.16,max:.16,flash:true});
+ }
+ wardenRoots(e,aim,rage){
+  const spots=[{x:aim.x,y:aim.y}];
+  const dx=aim.x-e.x,dy=aim.y-e.y,len=Math.hypot(dx,dy)||1;
+  spots.push({x:e.x+dx*0.45,y:e.y+dy*0.45});
+  spots.push({x:aim.x+dy/len*70,y:aim.y-dx/len*70});
+  if(rage)spots.push({x:aim.x-dy/len*80,y:aim.y+dx/len*80});
+  for(const s of spots){
+   this.hazards.push({kind:'root',x:s.x,y:s.y,r:rage?46:40,wait:rage?.7:.95,life:.45,dmg:rage?16:13,armed:false,struck:false});
+  }
+ }
+ wardenSmash(e,aim){
+  e.wind=0;
+  e.open=e.bundleBroken?1:1.45;
+  const d=dist(e,aim);
+  const facing=Math.cos(Math.atan2(aim.y-e.y,aim.x-e.x)-e.angle);
+  if(d<125&&facing>.05)this.hit(aim,e.bundleBroken?20:16,e);
+  this.effects.push({x:e.x,y:e.y,text:'',color:'#6b4420',t:.22,max:.22,swing:true,angle:e.angle,range:120});
+ }
+ thinkWarden(e,aim,dt){
+  const smashWas=e.smashIn||0;
+  e.open=Math.max(0,(e.open||0)-dt);
+  e.smashIn=Math.max(0,smashWas-dt);
+  e.chargeT=Math.max(0,(e.chargeT||0)-dt);
+  if(!e.bundleBroken&&e.hp<=e.maxHp*.5){
+   e.bundleBroken=true;
+   e.open=1.9;
+   e.wind=0;
+   e.move='recover';
+   this.emit('Вязанка треснула! Страж в ярости — бей без оглядки.');
+   this.effect(e.x,e.y-96,'ЯРОСТЬ','#c45a12');
+  }
+  const rage=!!e.bundleBroken;
+  const d=dist(e,aim);
+  if(d<560)e.active=true;
+  if(!e.active||e.stagger>0)return;
+  e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+  if(smashWas>0&&e.smashIn===0)this.wardenSmash(e,aim);
+  if(e.move==='charge'&&e.chargeT>0){
+   const sp=rage?300:240;
+   move(e,Math.cos(e.angle)*sp*dt,Math.sin(e.angle)*sp*dt);
+   e.wind=.2;
+   if(d<e.r+aim.r+10)this.hit(aim,rage?18:15,e);
+   if(e.chargeT===0){e.open=rage?.8:1.2;e.wind=0;e.move='recover';}
+   return;
+  }
+  if(e.smashIn>0){e.wind=Math.max(e.wind,e.smashIn);return;}
+  if(e.cd>0){
+   if(e.open<=0&&d>140)chase(e,aim,rage?86:68,dt);
+   return;
+  }
+  e.pattern=(e.pattern||0)+1;
+  const step=e.pattern%4;
+  if(d>230||step===1){
+   this.wardenThrow(e,aim,rage);
+   e.move='throw';
+   e.cd=rage?1.85:2.45;
+   e.open=rage?.85:1.2;
+   e.wind=0;
+   this.emit(rage?'Страж швыряет брёвна пачкой!':'Брёвна! Подними щит.');
+  }else if(step===2){
+   this.wardenRoots(e,aim,rage);
+   e.move='roots';
+   e.cd=rage?2:2.6;
+   e.open=rage?1:1.35;
+   e.wind=0;
+   this.emit('Корни! Отойди от светящихся кругов.');
+  }else if(d>130&&step===3){
+   e.move='charge';
+   e.chargeT=rage?.5:.68;
+   e.cd=rage?2.05:2.7;
+   e.open=0;
+   e.wind=.42;
+   this.emit('Страж разбегается. Шагни в сторону.');
+  }else{
+   e.move='smash';
+   e.smashIn=rage?.4:.58;
+   e.cd=rage?1.55:2.05;
+   e.open=0;
+   e.wind=e.smashIn;
+   this.emit('Вязанка занесена! Отойди или закройся щитом.');
+  }
+ }
  markSeen(force=false){
-  if(this.mission!=='maze'&&!force)return;
+  if(this.mission!=='maze'&&this.mission!=='forest'&&!force)return;
   const p=this.player;
   const step=48;
   this.seen.add(`${Math.floor(p.x/step)},${Math.floor(p.y/step)}`);
@@ -298,7 +420,7 @@ export class Game{
   }
  }
  isSeen(x,y){
-  if(this.mission!=='maze')return true;
+  if(this.mission!=='maze'&&this.mission!=='forest')return true;
   const step=48;
   return this.seen.has(`${Math.floor(x/step)},${Math.floor(y/step)}`);
  }
@@ -308,7 +430,7 @@ export class Game{
   this.time+=dt;
   const p=this.player;
   const st=this.stats();
-  const actors=this.mission==='maze'?[p,...this.enemies]:[p,this.ally,...this.enemies];
+  const actors=this.mission==='fort'?[p,this.ally,...this.enemies]:[p,...this.enemies];
   for(const e of actors){
    e.inv=Math.max(0,e.inv-dt);
    e.cd=Math.max(0,e.cd-dt);
@@ -353,13 +475,15 @@ export class Game{
     if(d<210&&d>70&&visible(e,aim)&&e.cd<=0){e.leap=.32;e.cd=1.85;e.wind=.25;this.effect(e.x,e.y-90,'!','#8a1f1f');}
     else e.wind=e.leap>0?.2:0;
     if(d<60&&visible(e,aim)&&e.cd<=1.2){e.cd=1.2;this.hit(aim,14,e);}
-   }else if(e.type==='shooter'||e.type==='boss'){
+   }   else if(e.type==='shooter'||e.type==='boss'){
     if(d>310||!visible(e,aim)){chase(e,aim,e.type==='boss'?72:74,dt);e.wind=0;}
     else if(d<120)move(e,-Math.cos(e.angle)*55*dt,-Math.sin(e.angle)*55*dt);
     if(d<420&&visible(e,aim)){
      if(e.cd<=.65)e.wind=.65-e.cd;else e.wind=0;
      if(e.cd<=0){this.fire(e,aim);e.cd=e.type==='boss'?2.25:2.4;e.wind=0;}
     }
+   }else if(e.type==='warden'){
+    this.thinkWarden(e,aim,dt);
    }
   }
   if(this.mission==='fort'&&this.rescued&&this.state==='playing'){
@@ -379,13 +503,22 @@ export class Game{
     if(blocked(b.x,b.y,4)){b.life=0;break;}
     const targets=b.friendly?this.enemies:[p,...(this.mission==='fort'&&this.rescued?[this.ally]:[])];
     for(const t of targets){
-     if(t.hp>0&&dist(b,t)<t.r+7){this.hit(t,b.damage,{x:b.x-b.dx*45,y:b.y-b.dy*45});b.life=0;break;}
+     if(t.hp>0&&dist(b,t)<t.r+(b.r||7)){this.hit(t,b.damage,{x:b.x-b.dx*45,y:b.y-b.dy*45});b.life=0;break;}
     }
    }
   }
   this.bullets=this.bullets.filter(b=>b.life>0);
   this.effects.forEach(e=>e.t-=dt);
   this.effects=this.effects.filter(e=>e.t>0);
+  for(const h of this.hazards){
+   h.wait-=dt;
+   if(h.wait<=0){
+    h.armed=true;
+    h.life-=dt;
+    if(!h.struck&&dist(p,h)<h.r){h.struck=true;this.hit(p,h.dmg,h);}
+   }
+  }
+  this.hazards=this.hazards.filter(h=>h.wait>0||h.life>0);
   for(const item of this.pickups){
    if(!item.used&&dist(p,item)<42&&p.hp<p.maxHp){
     item.used=true;
@@ -405,12 +538,15 @@ export class Game{
     this.emit(relic.text);
    }
   }
-  if(this.mission==='maze')this.markSeen();
+  if(this.mission==='maze'||this.mission==='forest')this.markSeen();
  }
  snapshot(){
+  const warden=this.enemies.find(e=>e.type==='warden'&&e.hp>0)||null;
   const objective=this.mission==='maze'
    ?(this.foundHermit?'Выбери облик у Хранителя':'Найди Хранителя в лабиринте')
-   :(this.rescued?'Вернитесь к воротам вместе':'Освободи ковбоя');
+   :this.mission==='forest'
+    ?(warden?(warden.bundleBroken?'Страж в ярости — бей':'Дождись открытия и бей Стража'):'Страж пал')
+    :(this.rescued?'Вернитесь к воротам вместе':'Освободи ковбоя');
   return{
    state:this.state,
    mission:this.mission,
@@ -423,6 +559,7 @@ export class Game{
    hero:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp},
    companion:{x:Math.round(this.ally.x),y:Math.round(this.ally.y),hp:this.ally.hp},
    enemies:this.enemies.filter(e=>e.hp>0).length,
+   warden:warden?{hp:Math.round(warden.hp),maxHp:warden.maxHp,open:warden.open>0,bundleBroken:!!warden.bundleBroken,move:warden.move}:null,
    objective,
    kills:this.kills,
    blocks:this.blocks

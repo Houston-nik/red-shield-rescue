@@ -12,11 +12,12 @@ const stickArt={
  spirit:Object.assign(new Image(),{src:'assets/skin-spirit.png'}),
  molten:Object.assign(new Image(),{src:'assets/skin-molten.png'}),
  wood:Object.assign(new Image(),{src:'assets/skin-wood.png'}),
- beast:Object.assign(new Image(),{src:'assets/beast.png'})
+ beast:Object.assign(new Image(),{src:'assets/beast.png'}),
+ warden:Object.assign(new Image(),{src:'assets/warden.png'})
 };
-atlas.onload=()=>{assetsReady=true;$('assetStatus').hidden=true;$('play').disabled=false;$('maze').disabled=false;refreshOwned();};
-atlas.onerror=()=>{$('assetStatus').textContent='Не удалось загрузить героев. Обнови страницу.';$('play').disabled=true;$('maze').disabled=true;};
-$('play').disabled=true;$('maze').disabled=true;
+atlas.onload=()=>{assetsReady=true;$('assetStatus').hidden=true;$('play').disabled=false;$('maze').disabled=false;$('forest').disabled=false;refreshOwned();};
+atlas.onerror=()=>{$('assetStatus').textContent='Не удалось загрузить героев. Обнови страницу.';$('play').disabled=true;$('maze').disabled=true;$('forest').disabled=true;};
+$('play').disabled=true;$('maze').disabled=true;$('forest').disabled=true;
 const sprites={warrior:{x:45,y:10,w:525,h:990},cowboy:{x:542,y:96,w:451,h:905},bandit:{x:1010,y:170,w:500,h:828}};
 function resize(){width=innerWidth;height=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.floor(width*dpr);canvas.height=Math.floor(height*dpr);zoom=Math.max(.48,Math.min(1.2,width/1050,height/660));if(width<600&&height>width)zoom=.64;ctx.setTransform(dpr,0,0,dpr,0,0);}
 addEventListener('resize',resize);resize();
@@ -33,7 +34,7 @@ function syncMusic(){
  if(!audio)return;
  const foe=game.state==='playing'?game.nearest(game.player,270):null;
  music.setMood({
-  place:game.mission==='maze'?'maze':'fort',
+  place:game.mission==='maze'?'maze':game.mission==='forest'?'forest':'fort',
   beat:game.state,
   danger:foe?Math.max(0,1-dist(game.player,foe)/270):0,
   hurt:game.player.hp<32,
@@ -43,6 +44,7 @@ function syncMusic(){
 function clearInput(){keys.clear();mouseDown=false;touchShield=false;touchAttack=false;joy={x:0,y:0};$('knob').style.transform='';$('shieldTouch').classList.remove('held');$('attackTouch').classList.remove('held');}
 function showToast(t){$('toast').textContent=t;$('toast').classList.add('show');toastUntil=performance.now()+4300;}
 function formatTime(t){return Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');}
+let wardrobeIntent='browse';
 function collection(){return loadWardrobe();}
 function refreshOwned(){
  const data=collection();
@@ -74,25 +76,35 @@ function renderWardrobe(){
   const card=document.createElement('div');
   card.className='ward-card'+(open?'':' locked');
   const mark=open?`<div class="relic-mark ${id}"></div>`:'<div class="portrait mystery">?</div>';
-  card.innerHTML=`${mark}<strong>${open?meta.name:'???'}</strong><span>${open?meta.hint:'Спрятана ближе к центру.'}</span>${open?'<em class="badge">Найдена</em>':''}`;
+  card.innerHTML=`${mark}<strong>${open?meta.name:'???'}</strong><span>${open?meta.hint:meta.locked}</span>${open?'<em class="badge">Найдена</em>':''}`;
   relics.appendChild(card);
  }
  const bits=[];
  if(data.mage)bits.push('Маг найден');
  const gifts=data.skins.filter(id=>id!=='warrior'&&id!=='mage');
  if(gifts.length)bits.push('дар: '+gifts.map(id=>SKINS[id].name).join(', '));
- if(data.relics.length)bits.push('пасхалки '+data.relics.length+'/2');
- $('wardrobeCopy').textContent=bits.length?bits.join(' · '):'Пройди лабиринт — сюда придут Маг, выбранный облик и пасхалки.';
+ if(data.relics.length)bits.push('находки '+data.relics.length+'/'+WARDROBE_RELICS.length);
+ $('wardrobeCopy').textContent=wardrobeIntent==='forest'
+  ?'Надень облик и входи. Страж бьёт вязанкой, брёвнами и корнями. Щит ловит брёвна, удар — когда броня открылась.'
+  :(bits.length?bits.join(' · '):'Пройди лабиринт — сюда придут Маг, выбранный облик и пасхалки.');
 }
-function openWardrobe(){
+function openWardrobe(intent='browse'){
  if(game.state==='playing'||game.state==='choosing'||game.state==='paused')return;
+ wardrobeIntent=intent==='forest'?'forest':'browse';
+ const prep=wardrobeIntent==='forest';
+ $('wardrobeEyebrow').textContent=prep?'ТРЕТЬЯ МИССИЯ · ВЫБЕРИ ОБЛИК':'ТРОФЕИ · ОБЛИКИ · НАХОДКИ';
+ $('wardrobeTitle').textContent=prep?'ПЕРЕД ЛЕСОМ':'ГАРДЕРОБ';
+ $('wardrobeSub').textContent=prep?'НАДЕНЬ ОБЛИК':'ЧТО УНЁС С СОБОЙ';
+ $('wardrobeGo').hidden=!prep;
  renderWardrobe();
  $('wardrobe').hidden=false;
  $('overlay').hidden=true;
 }
-function closeWardrobe(){
+function closeWardrobe(stayHidden=false){
  $('wardrobe').hidden=true;
- if(game.state!=='playing'&&game.state!=='choosing')$('overlay').hidden=false;
+ wardrobeIntent='browse';
+ $('wardrobeGo').hidden=true;
+ if(!stayHidden&&game.state!=='playing'&&game.state!=='choosing')$('overlay').hidden=false;
 }
 function setPlayingUI(){
  const playing=game.state==='playing';
@@ -104,7 +116,9 @@ function setPlayingUI(){
  $('skinPick').hidden=!choosing;
  $('allyHud').hidden=!playing||game.mission!=='fort'||!game.rescued;
  $('secretHud').hidden=!playing||game.mission!=='maze';
+ $('bossHud').hidden=!playing||game.mission!=='forest';
  $('maze').hidden=game.state==='paused';
+ $('forest').hidden=game.state==='paused';
  $('wardrobeBtn').hidden=game.state==='paused';
  if(playing||choosing)$('wardrobe').hidden=true;
  if(!playing){$('interact').hidden=true;if(!choosing)$('toast').classList.remove('show');}
@@ -112,12 +126,13 @@ function setPlayingUI(){
 function rebuildMap(){
  map.width=WORLD.w;
  map.height=WORLD.h;
- seed=game.mission==='maze'?3301:917;
+ seed=game.mission==='maze'?3301:game.mission==='forest'?4417:917;
  buildMap();
 }
 function begin(mission='fort'){
  if(!assetsReady)return;
  initSound();
+ closeWardrobe(true);
  game.begin(mission);
  const bag=collection();
  game.applyCollection(bag.equipped,bag.relics);
@@ -141,9 +156,10 @@ function pause(){
   $('cast').hidden=true;
   $('menuTitle').innerHTML='ПЕРЕДЫШКА';
   $('menuSub').textContent='МИССИЯ ПРИОСТАНОВЛЕНА';
-  $('menuCopy').textContent=game.mission==='maze'?'Коридоры никуда не убегут. Хранитель ждёт.':'Соберись с мыслями. Напарник ждёт.';
+  $('menuCopy').textContent=game.mission==='maze'?'Коридоры никуда не убегут. Хранитель ждёт.':game.mission==='forest'?'Страж никуда не денется. Щит ловит брёвна, удар — когда вязанка открылась.':'Соберись с мыслями. Напарник ждёт.';
   $('play').textContent='ПРОДОЛЖИТЬ';
   $('maze').hidden=true;
+  $('forest').hidden=true;
   $('wardrobe').hidden=true;
   $('wardrobeBtn').hidden=true;
   $('restart').hidden=false;
@@ -160,8 +176,10 @@ function pause(){
 }
 $('play').onclick=()=>{if(game.state==='paused')pause();else begin('fort');};
 $('maze').onclick=()=>begin('maze');
-$('wardrobeBtn').onclick=openWardrobe;
+$('forest').onclick=()=>openWardrobe('forest');
+$('wardrobeBtn').onclick=()=>openWardrobe('browse');
 $('wardrobeBack').onclick=closeWardrobe;
+$('wardrobeGo').onclick=()=>begin('forest');
 $('wardrobeSkins').onclick=e=>{
  const card=e.target.closest('[data-equip]');
  if(!card)return;
@@ -170,7 +188,7 @@ $('wardrobeSkins').onclick=e=>{
  refreshOwned();
  tone(320,.08);
 };
-$('restart').onclick=()=>begin(game.mission==='maze'?'maze':'fort');
+$('restart').onclick=()=>begin(game.mission);
 $('pause').onclick=pause;
 $('sound').onclick=()=>{soundOn=!soundOn;initSound();music.setEnabled(soundOn);if(soundOn)syncMusic();$('sound').textContent=soundOn?'♪':'♪̸';$('sound').setAttribute('aria-label',soundOn?'Выключить звук':'Включить звук');$('sound').title=soundOn?'Музыка и звуки':'Звук выключен';};
 $('interact').onclick=()=>{if(game.interact())tone(700,.2);};
@@ -211,24 +229,24 @@ let seed=917;function rnd(){seed=(seed*1664525+1013904223)>>>0;return seed/42949
 function roundRect(c,x,y,w,h,r=5){c.beginPath();c.roundRect(x,y,w,h,r);}
 function buildMap(){
  m.setTransform(1,0,0,1,0,0);
- m.fillStyle=game.mission==='maze'?'#d4c7ab':'#e7ddc8';
+ m.fillStyle=game.mission==='forest'?'#c9d4b8':game.mission==='maze'?'#d4c7ab':'#e7ddc8';
  m.fillRect(0,0,WORLD.w,WORLD.h);
  m.strokeStyle='#c2b39755';m.lineWidth=1;
- const specks=game.mission==='maze'?9000:15000;
+ const specks=game.mission==='maze'||game.mission==='forest'?9000:15000;
  for(let i=0;i<specks;i++){const x=rnd()*WORLD.w,y=rnd()*WORLD.h;m.globalAlpha=.13+rnd()*.22;m.beginPath();m.moveTo(x,y);m.lineTo(x+rnd()*8-4,y+rnd()*3);m.stroke();}
  m.globalAlpha=1;
- if(game.mission!=='maze'){
+ if(game.mission==='fort'){
   m.strokeStyle='#d9caae';m.lineWidth=190;m.lineCap='round';m.beginPath();m.moveTo(130,800);m.lineTo(520,800);m.lineTo(790,770);m.lineTo(1230,550);m.lineTo(1500,530);m.lineTo(2110,460);m.stroke();
   m.setLineDash([8,12]);m.strokeStyle='#b4a38155';m.lineWidth=2;m.beginPath();m.moveTo(140,865);m.lineTo(480,865);m.lineTo(830,825);m.lineTo(1250,605);m.lineTo(1530,590);m.lineTo(2100,530);m.stroke();m.setLineDash([]);
  }
  for(let i=0;i<(game.mission==='maze'?140:220);i++){const x=rnd()*WORLD.w,y=rnd()*WORLD.h;m.fillStyle='#756b5140';m.beginPath();m.ellipse(x,y,2+rnd()*5,1+rnd()*2,rnd()*3,0,Math.PI*2);m.fill();}
  for(const w of WALLS){
   m.fillStyle='#453c3230';m.fillRect(w.x+8,w.y+12,w.w,w.h);
-  m.fillStyle=game.mission==='maze'?'#3f382f':(w.w>70&&w.h>50?'#b7a88c':'#bfb29b');
+  m.fillStyle=game.mission==='forest'?'#2f4a33':game.mission==='maze'?'#3f382f':(w.w>70&&w.h>50?'#b7a88c':'#bfb29b');
   m.fillRect(w.x,w.y,w.w,w.h);
-  m.strokeStyle=game.mission==='maze'?'#2a251f':'#5a574c';m.lineWidth=2;m.strokeRect(w.x,w.y,w.w,w.h);
+  m.strokeStyle=game.mission==='forest'?'#1c2e20':game.mission==='maze'?'#2a251f':'#5a574c';m.lineWidth=2;m.strokeRect(w.x,w.y,w.w,w.h);
   m.strokeStyle='#655b4655';m.lineWidth=1;
-  if(game.mission==='maze'){
+  if(game.mission==='maze'||game.mission==='forest'){
    if(w.h>w.w){for(let y=w.y+14;y<w.y+w.h;y+=22){m.beginPath();m.moveTo(w.x,y);m.lineTo(w.x+w.w,y+3);m.stroke();}}
    else {for(let x=w.x+16;x<w.x+w.w;x+=26){m.beginPath();m.moveTo(x,w.y);m.lineTo(x+4,w.y+w.h);m.stroke();}}
   }else if(w.w>70&&w.h>50){
@@ -244,6 +262,10 @@ function buildMap(){
  if(game.mission==='maze'){
   label('ВХОД',game.exit.x-30,game.exit.y+70,22);
   m.fillStyle='#388079';m.font='bold 16px Arial';m.fillText('КОВБОЙ ЖДЁТ',game.exit.x-54,game.exit.y+92);
+ }else if(game.mission==='forest'){
+  label('ОПУШКА',game.exit.x-28,game.exit.y+64,22);
+  label('ПОЛЯНА СТРАЖА',1360,120,24);
+  m.fillStyle='#388079';m.font='bold 16px Arial';m.fillText('КОВБОЙ ЖДЁТ',game.exit.x-54,game.exit.y+86);
  }else{
   label('ПОДСТУПЫ',205,265,30);label('ВНЕШНИЙ ДВОР',835,255,28);label('ФОРТ ЖЁЛТОГО ШАРФА',1610,210,25);label('ПУТЬ НАЗАД',120,1190,21);
   m.strokeStyle='#378178';m.lineWidth=4;m.setLineDash([10,8]);m.strokeRect(100,690,125,220);m.setLineDash([]);m.fillStyle='#388079';m.font='bold 18px Arial';m.fillText('ВЫХОД',128,939);
@@ -274,7 +296,7 @@ function drawPaper(e,kind,scale=1){
 }
 function drawStick(e,kind,scale=1){
  const img=stickArt[kind];if(!img||!img.complete||!img.naturalWidth)return;
- const h=(kind==='beast'?92:108)*scale,w=img.naturalWidth/img.naturalHeight*h;
+ const h=(kind==='beast'?92:kind==='warden'?132:108)*scale,w=img.naturalWidth/img.naturalHeight*h;
  const bob=e.moving?Math.sin(game.time*15)*2.7:Math.sin(game.time*2)*.6;
  ctx.save();ctx.translate(e.x,e.y);ctx.fillStyle='#2c292926';ctx.beginPath();ctx.ellipse(0,6,w*.28,9*scale,0,0,Math.PI*2);ctx.fill();
  if(e.inv>0&&Math.floor(e.inv*17)%2===0)ctx.globalAlpha=.55;
@@ -284,8 +306,9 @@ function drawStick(e,kind,scale=1){
  ctx.restore();
 }
 function drawActor(e,kind,scale=1){
- if(kind==='hermit'||kind==='spirit'||kind==='molten'||kind==='wood'||kind==='beast')drawStick(e,kind,scale);
+ if(kind==='hermit'||kind==='spirit'||kind==='molten'||kind==='wood'||kind==='beast'||kind==='warden')drawStick(e,kind,scale);
  else drawPaper(e,kind,scale);
+ if(kind==='warden')return;
  if(e.hp<e.maxHp&&e.hp>0){
   ctx.fillStyle='#34353844';ctx.fillRect(e.x-23,e.y-113*scale,46,5);
   ctx.fillStyle=kind==='cowboy'?'#2d8a9d':kind==='beast'?'#6b1d1d':'#b62e34';
@@ -295,8 +318,8 @@ function drawActor(e,kind,scale=1){
 function marker(x,y,color,label){ctx.save();ctx.translate(x,y);ctx.strokeStyle=color;ctx.lineWidth=2;ctx.setLineDash([5,7]);ctx.beginPath();ctx.ellipse(0,0,48,22,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=color;ctx.font='bold 13px Arial';ctx.textAlign='center';ctx.fillText(label,0,40);ctx.restore();}
 function arrowTo(target,label,color){const sx=(target.x-camera.x)*zoom,sy=(target.y-camera.y-50)*zoom;if(sx>65&&sx<width-65&&sy>145&&sy<height-100)return;const cx=width/2,cy=height/2,a=Math.atan2(sy-cy,sx-cx),rx=width/2-65,ry=height/2-125,t=Math.min(rx/Math.max(.001,Math.abs(Math.cos(a))),Math.max(45,ry)/Math.max(.001,Math.abs(Math.sin(a)))),x=cx+Math.cos(a)*t,y=cy+Math.sin(a)*t;ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(-9,-10);ctx.lineTo(-5,0);ctx.lineTo(-9,10);ctx.closePath();ctx.fill();ctx.restore();ctx.fillStyle='#312f2d';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillText(label,x,y+26);}
 function drawFog(){
- if(game.mission!=='maze')return;
- ctx.fillStyle='#140f0c';
+ if(game.mission!=='maze'&&game.mission!=='forest')return;
+ ctx.fillStyle=game.mission==='forest'?'#0c1610':'#140f0c';
  ctx.fillRect(0,0,WORLD.w,WORLD.h);
  const step=48;
  for(const key of game.seen){
@@ -312,13 +335,17 @@ function minimap(){
  const sx=w/WORLD.w,sy=h/WORLD.h;
  ctx.fillStyle='#82776390';
  for(const r of WALLS){
-  if(game.mission==='maze'&&!game.isSeen(r.x+r.w/2,r.y+r.h/2))continue;
+  if((game.mission==='maze'||game.mission==='forest')&&!game.isSeen(r.x+r.w/2,r.y+r.h/2))continue;
   ctx.fillRect(x+r.x*sx,y+r.y*sy,Math.max(2,r.w*sx),Math.max(2,r.h*sy));
  }
  function dot(e,c,s=3){ctx.fillStyle=c;ctx.beginPath();ctx.arc(x+e.x*sx,y+e.y*sy,s,0,Math.PI*2);ctx.fill();}
  if(game.mission==='maze'){
   dot(game.player,'#bf3138',4);
   if(game.foundHermit||game.isSeen(game.hermit.x,game.hermit.y))dot(game.hermit,'#6b4ea1',4);
+ }else if(game.mission==='forest'){
+  dot(game.player,'#bf3138',4);
+  const warden=game.enemies.find(e=>e.type==='warden'&&e.hp>0);
+  if(warden&&game.isSeen(warden.x,warden.y))dot(warden,'#2f5a32',5);
  }else{
   dot(game.exit,'#398a80',4);dot(game.ally,'#348fa3');dot(game.player,'#bf3138',4);
  }
@@ -332,15 +359,27 @@ function draw(){
  camera.x+=(tx-camera.x)*.12;camera.y+=(ty-camera.y)*.12;
  ctx.save();ctx.scale(zoom,zoom);ctx.translate(-camera.x,-camera.y);ctx.drawImage(map,0,0);drawFog();
  for(const item of game.pickups){
-  if(item.used||(game.mission==='maze'&&!game.isSeen(item.x,item.y)))continue;
+  if(item.used||((game.mission==='maze'||game.mission==='forest')&&!game.isSeen(item.x,item.y)))continue;
   ctx.save();ctx.translate(item.x,item.y);ctx.fillStyle='#fcf7e8';ctx.strokeStyle='#6d7863';ctx.lineWidth=2;roundRect(ctx,-17,-13,34,27,4);ctx.fill();ctx.stroke();ctx.fillStyle='#ae3c40';ctx.fillRect(-3,-9,6,18);ctx.fillRect(-10,-3,20,6);ctx.restore();
  }
  for(const relic of game.relics){
   if(relic.used||!game.isSeen(relic.x,relic.y))continue;
   ctx.save();ctx.translate(relic.x,relic.y);ctx.rotate(game.time);ctx.fillStyle=relic.id==='ember'?'#d27a22':'#4f7a3a';ctx.beginPath();ctx.moveTo(0,-13);ctx.lineTo(10,0);ctx.lineTo(0,13);ctx.lineTo(-10,0);ctx.closePath();ctx.fill();ctx.restore();
  }
+ for(const h of game.hazards||[]){
+  if(game.mission==='forest'&&!game.isSeen(h.x,h.y))continue;
+  ctx.save();ctx.translate(h.x,h.y);
+  ctx.strokeStyle=h.armed?'#3d7a3acc':'#6db36a99';
+  ctx.fillStyle=h.armed?'#2f6b2a55':'#5aa45a33';
+  ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(0,0,h.r,h.r*.7,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.restore();
+ }
  if(game.mission==='maze'){
   if(!game.foundHermit&&game.isSeen(game.hermit.x,game.hermit.y))marker(game.hermit.x,game.hermit.y,'#6b4ea1','ХРАНИТЕЛЬ');
+  if(game.isSeen(game.ally.x,game.ally.y)||dist(game.player,game.ally)<220)marker(game.ally.x,game.ally.y,'#2c7f92','ЖДЁТ ЗДЕСЬ');
+ }else if(game.mission==='forest'){
+  const warden=game.enemies.find(e=>e.type==='warden'&&e.hp>0);
+  if(warden&&game.isSeen(warden.x,warden.y))marker(warden.x,warden.y,'#2f5a32',warden.open>0?'БЕЙ СЕЙЧАС':'СТРАЖ ЛЕСА');
   if(game.isSeen(game.ally.x,game.ally.y)||dist(game.player,game.ally)<220)marker(game.ally.x,game.ally.y,'#2c7f92','ЖДЁТ ЗДЕСЬ');
  }else if(!game.rescued){
   marker(game.ally.x,game.ally.y,'#2c7f92','НАПАРНИК');
@@ -348,26 +387,34 @@ function draw(){
   for(let i=0;i<5;i++){ctx.beginPath();ctx.moveTo(2020+i*40,335);ctx.lineTo(2020+i*40,565);ctx.stroke();}
  }else marker(game.exit.x,game.exit.y,'#3b8774','СЮДА, ВМЕСТЕ!');
  const entities=[
-  ...game.enemies.filter(e=>e.hp>0).map(e=>({e,kind:e.type==='beast'?'beast':'bandit'})),
+  ...game.enemies.filter(e=>e.hp>0).map(e=>({e,kind:e.type==='beast'?'beast':e.type==='warden'?'warden':'bandit'})),
   {e:game.ally,kind:'cowboy'},
   ...(game.mission==='maze'?[{e:game.hermit,kind:'hermit'}]:[]),
   {e:game.player,kind:playerKind()}
  ].sort((a,b)=>a.e.y-b.e.y);
  for(const{e,kind} of entities){
   if(e.x<camera.x-100||e.x>camera.x+width/zoom+100||e.y<camera.y-100||e.y>camera.y+height/zoom+120)continue;
-  if(game.mission==='maze'&&kind!=='warrior'&&kind!==playerKind()&&!game.isSeen(e.x,e.y)&&kind!=='cowboy')continue;
+  if((game.mission==='maze'||game.mission==='forest')&&kind!=='warrior'&&kind!==playerKind()&&!game.isSeen(e.x,e.y)&&kind!=='cowboy')continue;
   if(e.type&&e.wind>0){
    ctx.strokeStyle='#b62e3455';ctx.setLineDash([6,8]);ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(e.x,e.y-10);ctx.lineTo(e.x+Math.cos(e.angle)*250,e.y+Math.sin(e.angle)*250-10);ctx.stroke();ctx.setLineDash([]);
    ctx.fillStyle='#bc3137';ctx.font='bold 24px Arial';ctx.textAlign='center';ctx.fillText('!',e.x,e.y-105);
   }
-  const scale=e.type==='boss'?1.22:e.type==='beast'?1.08:e.type==='melee'?.9:kind==='hermit'?1.12:1;
+  const scale=e.type==='warden'?1.38:e.type==='boss'?1.22:e.type==='beast'?1.08:e.type==='melee'?.9:kind==='hermit'?1.12:1;
   drawActor(e,kind,scale);
   if(e.type==='boss'){ctx.fillStyle='#463d2c';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillText('ЖЁЛТЫЙ ШАРФ',e.x,e.y-151);}
   if(e.type==='beast'){ctx.fillStyle='#5a1d1d';ctx.font='bold 11px Arial';ctx.textAlign='center';ctx.fillText('ТВАРЬ',e.x,e.y-122);}
+  if(e.type==='warden'){ctx.fillStyle='#1f3d24';ctx.font='bold 13px Arial';ctx.textAlign='center';ctx.fillText(e.bundleBroken?'СТРАЖ · ЯРОСТЬ':'СТРАЖ ЛЕСА',e.x,e.y-168);}
  }
  const p=game.player;
  if(p.shield){ctx.save();ctx.translate(p.x,p.y-15);ctx.strokeStyle=p.skin==='spirit'?'#b38cff':'#e7bc4e';ctx.lineWidth=7;ctx.shadowColor=p.skin==='spirit'?'#9b6dff':'#efc865';ctx.shadowBlur=8;ctx.beginPath();ctx.arc(0,0,44,p.angle-1.2,p.angle+1.2);ctx.stroke();ctx.restore();}
- for(const b of game.bullets){ctx.strokeStyle=b.friendly?'#2d92ad':'#ba6932';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(b.x-b.dx*15,b.y-b.dy*15-15);ctx.lineTo(b.x,b.y-15);ctx.stroke();}
+ for(const b of game.bullets){
+  if(b.kind==='log'){
+   ctx.save();ctx.translate(b.x,b.y-12);ctx.rotate(Math.atan2(b.dy,b.dx));
+   ctx.fillStyle='#6b4423';ctx.fillRect(-14,-5,28,10);ctx.restore();
+  }else{
+   ctx.strokeStyle=b.friendly?'#2d92ad':'#ba6932';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(b.x-b.dx*15,b.y-b.dy*15-15);ctx.lineTo(b.x,b.y-15);ctx.stroke();
+  }
+ }
  for(const f of game.effects){
   ctx.save();ctx.globalAlpha=f.t/f.max;
   if(f.swing){ctx.strokeStyle='#a52c35';ctx.lineWidth=4;ctx.beginPath();ctx.arc(f.x,f.y-20,f.range?Math.min(90,f.range*.7):80,f.angle-.9,f.angle+.9);ctx.stroke();}
@@ -378,7 +425,10 @@ function draw(){
  ctx.restore();
  if(game.state==='playing'){
   if(game.mission==='maze')arrowTo(game.hermit,'ХРАНИТЕЛЬ','#6b4ea1');
-  else arrowTo(game.rescued?game.exit:game.ally,game.rescued?'К ВОРОТАМ':'КОВБОЙ',game.rescued?'#397e6c':'#b62e34');
+  else if(game.mission==='forest'){
+   const warden=game.enemies.find(e=>e.type==='warden'&&e.hp>0);
+   if(warden)arrowTo(warden,warden.open>0?'БЕЙ':'СТРАЖ',warden.open>0?'#b62e34':'#2f5a32');
+  }else arrowTo(game.rescued?game.exit:game.ally,game.rescued?'К ВОРОТАМ':'КОВБОЙ',game.rescued?'#397e6c':'#b62e34');
   minimap();
   if(game.player.hp<30){const grad=ctx.createRadialGradient(width/2,height/2,height*.25,width/2,height/2,Math.max(width,height)*.65);grad.addColorStop(0,'#a9232700');grad.addColorStop(1,'#a9232735');ctx.fillStyle=grad;ctx.fillRect(0,0,width,height);}
  }
@@ -386,9 +436,11 @@ function draw(){
 function showHomeButtons(win){
  $('play').hidden=false;
  $('maze').hidden=false;
+ $('forest').hidden=false;
  $('wardrobeBtn').hidden=false;
  $('play').textContent=game.mission==='fort'?(win?'СЫГРАТЬ ЕЩЁ':'ПОПРОБОВАТЬ СНОВА'):'В ФОРТ';
  $('maze').textContent=game.mission==='maze'?(win?'ЛАБИРИНТ СНОВА':'СНОВА В КОРИДОРЫ'):'В ЛАБИРИНТ';
+ $('forest').textContent=game.mission==='forest'?(win?'ЛЕС СНОВА':'СНОВА К СТРАЖУ'):'В ТЁМНЫЙ ЛЕС';
  $('restart').hidden=true;
 }
 function endScreen(){
@@ -406,6 +458,13 @@ function endScreen(){
   $('menuCopy').textContent=win?(skin?`Ты стал: ${skin.name}. ${skin.hint}`:'Ты нашёл Хранителя.'):game.reason;
   $('stampNum').textContent='02';
   $('stampPlace').textContent='ЛАБИРИНТ';
+ }else if(game.mission==='forest'){
+  if(win)unlockRelic('bark');
+  $('menuTitle').innerHTML=win?'ЛЕС<br><em>ВЫДОХНУЛ</em>':'ЕЩЁ<br><em>ПОПЫТКА?</em>';
+  $('menuSub').textContent=win?'СТРАЖ ПОВЕРЖЕН':'СТРАЖ СИЛЬНЕЕ';
+  $('menuCopy').textContent=win?'Вязанка падает. Кора Стража лежит в гардеробе.':'Страж сломал тебя. Щит ловит брёвна, удар — когда вязанка открылась.';
+  $('stampNum').textContent='03';
+  $('stampPlace').textContent='ЛЕС';
  }else{
   $('menuTitle').innerHTML=win?'СВОИХ<br><em>НЕ БРОСАЕМ</em>':'ЕЩЁ<br><em>ПОПЫТКА?</em>';
   $('menuSub').textContent=win?'МИССИЯ ВЫПОЛНЕНА':'МИССИЯ НЕ ЗАВЕРШЕНА';
@@ -417,7 +476,7 @@ function endScreen(){
  const secretBit=game.mission==='maze'?`<div><b>${game.secrets}/2</b><span>тайны</span></div>`:'';
  $('results').innerHTML=`<div><b>${formatTime(game.time)}</b><span>время</span></div><div><b>${game.kills}</b><span>побеждено</span></div><div><b>${game.blocks}</b><span>блоков щитом</span></div>${secretBit}`;
  showHomeButtons(win);
- $('menuFoot').textContent=win?(game.mission==='maze'?'Облик лежит в гардеробе. Можешь надеть его перед новой миссией.':'Ты прикрывал. Он доверял. Вы справились.'):'Укрытие, щит, удар. И ещё один шанс.';
+ $('menuFoot').textContent=win?(game.mission==='maze'?'Облик лежит в гардеробе. Можешь надеть его перед новой миссией.':game.mission==='forest'?'Перед новым лесом снова выбери облик в гардеробе.':'Ты прикрывал. Он доверял. Вы справились.'):'Укрытие, щит, удар. И ещё один шанс.';
  refreshOwned();
  setPlayingUI();
  tone(win?660:140,.3,'triangle');
@@ -433,6 +492,14 @@ function updateHUD(){
  $('clock').textContent=formatTime(game.time);
  $('secretHud').textContent='тайны '+game.secrets+'/2';
  $('secretHud').hidden=game.mission!=='maze'||game.state!=='playing';
+ const warden=game.enemies.find(e=>e.type==='warden'&&e.hp>0);
+ const showBoss=game.mission==='forest'&&game.state==='playing'&&warden&&(warden.active||dist(p,warden)<420);
+ $('bossHud').hidden=!showBoss;
+ if(showBoss){
+  $('bossText').textContent=Math.round(warden.hp);
+  $('bossBar').style.width=(warden.hp/warden.maxHp*100)+'%';
+  $('bossHint').textContent=warden.open>0?'Бей сейчас — броня открылась!':warden.bundleBroken?'Ярость: все удары проходят.':'Жди удара, потом бей.';
+ }
  if(game.mission==='maze'){
   $('chapter').textContent='03 / ЛАБИРИНТ';
   $('goal').textContent=game.foundHermit?'Выбери облик':'Найди Хранителя в лабиринте';
@@ -440,12 +507,19 @@ function updateHUD(){
   const near=dist(p,game.hermit)<=125&&!game.foundHermit;
   $('interact').hidden=!near||game.state!=='playing';
   $('interact').innerHTML='Говорить с Хранителем <kbd>E</kbd>';
+ }else if(game.mission==='forest'){
+  $('chapter').textContent='04 / ТЁМНЫЙ ЛЕС';
+  $('goal').textContent=warden?(warden.open>0?'Бей Стража сейчас!':'Победи Стража леса'):'Страж пал';
+  $('allyHud').hidden=true;
+  $('interact').hidden=true;
+  document.querySelector('.help-note').textContent='Щит ловит брёвна. Бей, когда вязанка открылась';
  }else{
   $('chapter').textContent=game.rescued?'02 / ВОЗВРАЩЕНИЕ':'01 / ПРОНИКНОВЕНИЕ';
   $('goal').textContent=game.rescued?'Вернитесь к воротам вместе':'Освободи ковбоя в форте';
   $('allyHud').hidden=!game.rescued||game.state!=='playing';
   $('interact').hidden=game.rescued||game.state!=='playing'||dist(p,game.ally)>115;
   $('interact').innerHTML='Освободить ковбоя <kbd>E</kbd>';
+  document.querySelector('.help-note').textContent='Щит прикрывает только спереди';
  }
 }
 function loop(t){
@@ -499,6 +573,39 @@ window.redShield={
    game.player.y=next.y;
    game.markSeen(true);
    return next.id;
+  },
+  gotoWarden(){
+   if(game.mission!=='forest'||game.state!=='playing')return false;
+   const warden=game.enemies.find(e=>e.type==='warden'&&e.hp>0);
+   if(!warden)return false;
+   game.player.x=warden.x-110;
+   game.player.y=warden.y;
+   game.player.hp=100;
+   game.player.energy=100;
+   warden.active=true;
+   game.markSeen(true);
+   return true;
+  },
+  openWarden(){
+   const warden=game.enemies.find(e=>e.type==='warden'&&e.hp>0);
+   if(!warden)return false;
+   warden.open=3;
+   warden.wind=0;
+   warden.smashIn=0;
+   warden.chargeT=0;
+   warden.cd=2;
+   warden.move='recover';
+   return true;
+  },
+  defeatWarden(){
+   if(game.mission!=='forest'||game.state!=='playing')return false;
+   const warden=game.enemies.find(e=>e.type==='warden'&&e.hp>0);
+   if(!warden)return false;
+   warden.bundleBroken=true;
+   warden.open=3;
+   warden.hp=1;
+   game.hit(warden,999,game.player);
+   return game.state==='won';
   }
  }
 };

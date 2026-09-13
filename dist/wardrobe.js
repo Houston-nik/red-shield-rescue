@@ -4,7 +4,7 @@ const KEY='redShield.wardrobe';
 const OLD_SKIN='redShield.skin';
 
 export const WARDROBE_SKINS=['warrior','mage','spirit','molten','wood'];
-export const WARDROBE_RELICS=['ember','vine'];
+export const WARDROBE_RELICS=['ember','vine','bark'];
 
 function empty(){
  return {skins:['warrior'],relics:[],mage:false,equipped:'warrior'};
@@ -85,5 +85,7 @@ export function skinMeta(id){
 export function relicMeta(id){
  const base=RELICS[id];
  if(!base)return null;
- return {...base,hint:id==='ember'?'Удары становятся тяжелее.':'Копьё достаёт дальше.'};
+ const hint=id==='ember'?'Удары становятся тяжелее.':id==='vine'?'Копьё достаёт дальше.':'После боя со Стражем. Раны чуть быстрее заживают.';
+ const locked=id==='bark'?'Победи Стража леса.':'Спрятана ближе к центру.';
+ return {...base,hint,locked};
 }

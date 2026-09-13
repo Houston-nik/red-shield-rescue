@@ -18,9 +18,34 @@ export const SKINS={
 };
 
 export const RELICS={
- ember:{id:'ember',name:'Жар копья',text:'Пасхалка: оружие вспыхнуло. Удары стали тяжелее.',dmg:10,range:0},
- vine:{id:'vine',name:'Жила рощи',text:'Пасхалка: древко выросло. Достаёшь дальше.',dmg:0,range:28}
+ ember:{id:'ember',name:'Жар копья',text:'Пасхалка: оружие вспыхнуло. Удары стали тяжелее.',dmg:10,range:0,regen:0},
+ vine:{id:'vine',name:'Жила рощи',text:'Пасхалка: древко выросло. Достаёшь дальше.',dmg:0,range:28,regen:0},
+ bark:{id:'bark',name:'Кора стража',text:'Трофей: кора Стража леса. Раны чуть быстрее заживают.',dmg:0,range:0,regen:1.5}
 };
+
+export const FOREST_WORLD={w:2000,h:1400};
+export const FOREST_WALLS=[
+ {x:20,y:20,w:1960,h:32},{x:20,y:1348,w:1960,h:32},{x:20,y:20,w:32,h:1360},{x:1948,y:20,w:32,h:1360},
+ {x:70,y:70,w:140,h:980},
+ {x:270,y:70,w:910,h:410},
+ {x:490,y:720,w:680,h:200},
+ {x:490,y:940,w:1430,h:380},
+ {x:1680,y:70,w:240,h:210}
+];
+
+export function createForestLevel(){
+ const start={x:330,y:1180};
+ const warden={x:1460,y:360};
+ return {
+  world:{...FOREST_WORLD},
+  walls:FOREST_WALLS.map(w=>({...w})),
+  start,
+  exit:{x:start.x,y:start.y},
+  warden,
+  pickups:[{x:360,y:980,used:false},{x:720,y:610,used:false},{x:1280,y:430,used:false}],
+  enemies:[{type:'beast',x:360,y:880},{type:'beast',x:840,y:620},{type:'melee',x:1120,y:600}]
+ };
+}
 
 function rng(seed){
  let a=seed>>>0;
