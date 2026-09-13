@@ -549,7 +549,7 @@ function loop(t){
   if(game.state==='choosing'){clearInput();setPlayingUI();unlockMage();refreshOwned();syncMusic();tone(420,.2);}
   if(game.state==='won'||game.state==='lost')endScreen();
  }
- previousState=game.state;draw();music.tick();frame++;requestAnimationFrame(loop);
+ previousState=game.state;draw();try{music.tick();}catch{/* music must not freeze the mission */}frame++;requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 window.redShield={
