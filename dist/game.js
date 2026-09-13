@@ -1,7 +1,9 @@
 import {Game,WORLD,WALLS,dist,SKINS} from './engine.js';
+import {createAtmosphere} from './music.js';
 const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d'),game=new Game();
 const keys=new Set(),input={x:0,y:0,attack:false,shield:false,interact:false};
 let width=innerWidth,height=innerHeight,dpr=1,camera={x:0,y:0},zoom=1,last=0,frame=0,previousState='ready',toastUntil=0,assetsReady=false,mouseDown=false,joy={x:0,y:0},touchAttack=false,touchShield=false,soundOn=true,audio=null,prevKills=0,prevBlocks=0,prevHp=100,lastAttack=0,prevSecrets=0;
+const music=createAtmosphere();
 const coarse=matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0;
 const atlas=new Image();atlas.src='assets/characters.png';
 const stickArt={
@@ -17,8 +19,25 @@ $('play').disabled=true;$('maze').disabled=true;
 const sprites={warrior:{x:45,y:10,w:525,h:990},cowboy:{x:542,y:96,w:451,h:905},bandit:{x:1010,y:170,w:500,h:828}};
 function resize(){width=innerWidth;height=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.floor(width*dpr);canvas.height=Math.floor(height*dpr);zoom=Math.max(.48,Math.min(1.2,width/1050,height/660));if(width<600&&height>width)zoom=.64;ctx.setTransform(dpr,0,0,dpr,0,0);}
 addEventListener('resize',resize);resize();
-function initSound(){if(!audio){try{audio=new(window.AudioContext||window.webkitAudioContext)()}catch{soundOn=false;}}if(audio?.state==='suspended')audio.resume();}
+function initSound(){
+ if(!audio){
+  try{audio=new(window.AudioContext||window.webkitAudioContext)();music.attach(audio);}
+  catch{soundOn=false;}
+ }
+ if(audio?.state==='suspended')audio.resume();
+ music.setEnabled(soundOn);
+}
 function tone(f,d=.07,type='triangle',vol=.055){if(!audio||!soundOn)return;const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.setValueAtTime(f,audio.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(30,f*.5),audio.currentTime+d);g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+d);}
+function syncMusic(){
+ if(!audio)return;
+ const foe=game.state==='playing'?game.nearest(game.player,270):null;
+ music.setMood({
+  place:game.mission==='maze'?'maze':'fort',
+  beat:game.state,
+  danger:foe?Math.max(0,1-dist(game.player,foe)/270):0,
+  hurt:game.player.hp<32
+ });
+}
 function clearInput(){keys.clear();mouseDown=false;touchShield=false;touchAttack=false;joy={x:0,y:0};$('knob').style.transform='';$('shieldTouch').classList.remove('held');$('attackTouch').classList.remove('held');}
 function showToast(t){$('toast').textContent=t;$('toast').classList.add('show');toastUntil=performance.now()+4300;}
 function formatTime(t){return Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');}
@@ -61,6 +80,7 @@ function begin(mission='fort'){
  $('skinPick').hidden=true;
  setPlayingUI();
  updateHUD();
+ syncMusic();
  tone(380,.12);
 }
 function pause(){
@@ -79,17 +99,19 @@ function pause(){
   $('results').hidden=true;
   $('menuFoot').textContent='WASD: движение · F: удар · Пробел: щит';
   setPlayingUI();
+  syncMusic();
  }else if(game.state==='paused'){
   game.state='playing';
   clearInput();
   setPlayingUI();
+  syncMusic();
  }
 }
 $('play').onclick=()=>{if(game.state==='paused')pause();else begin('fort');};
 $('maze').onclick=()=>begin('maze');
 $('restart').onclick=()=>begin(game.mission==='maze'?'maze':'fort');
 $('pause').onclick=pause;
-$('sound').onclick=()=>{soundOn=!soundOn;initSound();$('sound').textContent=soundOn?'♪':'♪̸';$('sound').setAttribute('aria-label',soundOn?'Выключить звук':'Включить звук');};
+$('sound').onclick=()=>{soundOn=!soundOn;initSound();music.setEnabled(soundOn);if(soundOn)syncMusic();$('sound').textContent=soundOn?'♪':'♪̸';$('sound').setAttribute('aria-label',soundOn?'Выключить звук':'Включить звук');$('sound').title=soundOn?'Музыка и звуки':'Звук выключен';};
 $('interact').onclick=()=>{if(game.interact())tone(700,.2);};
 for(const btn of document.querySelectorAll('.skin-card')){
  btn.onclick=()=>{
@@ -332,6 +354,7 @@ function endScreen(){
  $('menuFoot').textContent=win?(game.mission==='maze'?'Один облик. Свой. Можешь войти снова и выбрать иначе.':'Ты прикрывал. Он доверял. Вы справились.'):'Укрытие, щит, удар. И ещё один шанс.';
  setPlayingUI();
  tone(win?660:140,.3,'triangle');
+ syncMusic();
 }
 function updateHUD(){
  const p=game.player;
@@ -376,16 +399,18 @@ function loop(t){
   while(game.events.length)showToast(game.events.shift());
   if(t>toastUntil)$('toast').classList.remove('show');
   if(frame%5===0)updateHUD();
+  if(frame%8===0)syncMusic();
  }
  if(game.state!==previousState){
-  if(game.state==='choosing'){clearInput();setPlayingUI();tone(420,.2);}
+  if(game.state==='choosing'){clearInput();setPlayingUI();syncMusic();tone(420,.2);}
   if(game.state==='won'||game.state==='lost')endScreen();
  }
- previousState=game.state;draw();frame++;requestAnimationFrame(loop);
+ previousState=game.state;draw();music.tick();frame++;requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 window.redShield={
  status:()=>game.snapshot(),
+ audio:()=>({on:soundOn,ctx:audio?audio.state:'none',time:audio?Math.round(audio.currentTime*10)/10:0}),
  __test:{
   gotoHermit(){
    if(game.mission!=='maze'||game.state!=='playing')return false;
