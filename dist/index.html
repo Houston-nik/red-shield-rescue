@@ -6,7 +6,7 @@
 <div id="toast" role="status" aria-live="polite"></div><button id="interact" hidden>Освободить ковбоя <kbd>E</kbd></button>
 <div id="desktopHelp" hidden><span><kbd>WASD</kbd> движение</span><span><kbd>МЫШЬ / F</kbd> удар</span><span><kbd>ПРОБЕЛ</kbd> щит</span><span class="help-note">Щит прикрывает только спереди</span></div>
 <div id="touch" hidden><div id="stick" aria-label="Джойстик движения"><div id="knob"></div></div><div class="touch-actions"><button id="shieldTouch">ЩИТ</button><button id="attackTouch">УДАР</button></div></div>
-<section id="overlay" class="overlay"><div class="menu"><div class="eyebrow" id="eyebrow">ДВЕ МИССИИ · ОДИН ИГРОК</div><div id="cast" class="cast"><div class="cast-person warrior"></div><div class="cast-person cowboy"></div><div class="cast-person bandit"></div></div><h1 id="menuTitle">КРАСНЫЙ<br><em>ЩИТ</em></h1><p id="menuSub" class="subtitle">СПАСТИ НАПАРНИКА</p><p id="menuCopy">Проберись в форт. Освободи ковбоя.<br>Потом пройди лабиринт Хранителя.</p><div id="results" hidden></div><button id="play" class="primary">В ФОРТ <span>↗</span></button><button id="maze" class="primary maze">В ЛАБИРИНТ <span>↗</span></button><button id="restart" class="secondary" hidden>Начать заново</button><p id="ownedSkin" class="owned" hidden></p><p id="menuFoot" class="footnote">По твоему рисунку. Теперь герои двигаются.</p><span id="assetStatus" role="status">Герои готовятся…</span></div><div class="mission-stamp" id="stamp"><span>ОПЕРАЦИЯ</span><b id="stampNum">01</b><span id="stampPlace">ФОРТ</span></div></section>
+<section id="overlay" class="overlay"><div class="menu"><div class="eyebrow" id="eyebrow">ДВЕ МИССИИ · ОДИН ИГРОК</div><div id="cast" class="cast"><div class="cast-person warrior"></div><div class="cast-person cowboy"></div><div class="cast-person bandit"></div></div><h1 id="menuTitle">КРАСНЫЙ<br><em>ЩИТ</em></h1><p id="menuSub" class="subtitle">СПАСТИ НАПАРНИКА</p><p id="menuCopy">Проберись в форт. Освободи ковбоя.<br>Потом пройди лабиринт Хранителя.</p><div id="results" hidden></div><button id="play" class="primary">В ФОРТ <span>↗</span></button><button id="maze" class="primary maze">В ЛАБИРИНТ <span>↗</span></button><button id="wardrobeBtn" class="secondary">Гардероб</button><button id="restart" class="secondary" hidden>Начать заново</button><p id="ownedSkin" class="owned" hidden></p><p id="menuFoot" class="footnote">По твоему рисунку. Теперь герои двигаются.</p><span id="assetStatus" role="status">Герои готовятся…</span></div><div class="mission-stamp" id="stamp"><span>ОПЕРАЦИЯ</span><b id="stampNum">01</b><span id="stampPlace">ФОРТ</span></div></section>
 <section id="skinPick" class="overlay skins" hidden>
  <div class="menu skin-menu">
   <div class="eyebrow">ОДИН ДАР · ВЫБОР НАВСЕГДА ДО НОВОЙ ПОПЫТКИ</div>
@@ -18,6 +18,19 @@
    <button class="skin-card" data-skin="molten"><img src="assets/skin-molten.png" alt="Огненный клинок"><strong>Огненный клинок</strong><span>Удар тяжелее</span></button>
    <button class="skin-card" data-skin="wood"><img src="assets/skin-wood.png" alt="Пьетон"><strong>Пьетон</strong><span>Копьё достаёт дальше</span></button>
   </div>
+ </div>
+</section>
+<section id="wardrobe" class="overlay wardrobe-overlay" hidden>
+ <div class="menu wardrobe-menu">
+  <div class="eyebrow">ТРОФЕИ · ОБЛИКИ · НАХОДКИ</div>
+  <h1>ГАРДЕРОБ</h1>
+  <p class="subtitle">ЧТО УНЁС С СОБОЙ</p>
+  <p id="wardrobeCopy">Здесь лежит то, что ты нашёл: Маг, дар Хранителя и пасхалки.</p>
+  <h2 class="ward-title">Облики</h2>
+  <div id="wardrobeSkins" class="ward-grid"></div>
+  <h2 class="ward-title">Находки</h2>
+  <div id="wardrobeRelics" class="ward-grid relics"></div>
+  <button id="wardrobeBack" class="secondary">Назад</button>
  </div>
 </section>
 <div id="rotateHint">Удобнее играть, повернув телефон горизонтально.</div>

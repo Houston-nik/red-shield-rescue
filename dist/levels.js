@@ -13,7 +13,8 @@ export const SKINS={
  warrior:{id:'warrior',name:'Красный щит',hint:'Твой привычный облик.',dmg:30,range:115,cd:.43,speed:190,shieldCost:9,energyDrain:4,energyRegen:23,regen:0},
  spirit:{id:'spirit',name:'Лиловый страж',hint:'Щит держится дольше. Энергия течёт быстрее.',dmg:27,range:128,cd:.4,speed:188,shieldCost:5,energyDrain:2.2,energyRegen:34,regen:0},
  molten:{id:'molten',name:'Огненный клинок',hint:'Удар тяжелее, шаг чуть медленнее.',dmg:44,range:120,cd:.5,speed:168,shieldCost:9,energyDrain:5,energyRegen:18,regen:0},
- wood:{id:'wood',name:'Пьетон',hint:'Копьё достаёт дальше. Раны медленно затягиваются.',dmg:33,range:160,cd:.36,speed:204,shieldCost:8,energyDrain:3.5,energyRegen:24,regen:3.4}
+ wood:{id:'wood',name:'Пьетон',hint:'Копьё достаёт дальше. Раны медленно затягиваются.',dmg:33,range:160,cd:.36,speed:204,shieldCost:8,energyDrain:3.5,energyRegen:24,regen:3.4},
+ mage:{id:'mage',name:'Маг',hint:'Хранитель, которого ты нашёл. Посох достаёт далеко, раны тихо заживают.',dmg:28,range:148,cd:.41,speed:176,shieldCost:7,energyDrain:3,energyRegen:28,regen:2.4}
 };
 
 export const RELICS={

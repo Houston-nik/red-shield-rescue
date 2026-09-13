@@ -1,4 +1,4 @@
-import {FORT_WORLD,FORT_WALLS,SKINS,createMazeLevel} from './levels.js';
+import {FORT_WORLD,FORT_WALLS,SKINS,RELICS,createMazeLevel} from './levels.js';
 
 export const WORLD={w:FORT_WORLD.w,h:FORT_WORLD.h};
 export const WALLS=FORT_WALLS.map(w=>({...w}));
@@ -158,6 +158,17 @@ export class Game{
   this.relics=level.relics.map(r=>({...r}));
   for(const e of level.enemies)this.spawn(e.type,e.x,e.y);
  }
+ applyCollection(skin,relicIds=[]){
+  if(SKINS[skin])this.player.skin=skin;
+  this.bonus={dmg:0,range:0};
+  for(const id of relicIds){
+   const relic=RELICS[id];
+   if(!relic)continue;
+   this.bonus.dmg+=relic.dmg||0;
+   this.bonus.range+=relic.range||0;
+  }
+  if(this.mission==='maze')this.relics=this.relics.filter(r=>!relicIds.includes(r.id));
+ }
  spawn(type,x,y){
   const boss=type==='boss';
   const beast=type==='beast';
@@ -198,7 +209,7 @@ export class Game{
   return true;
  }
  chooseSkin(id){
-  if(this.state!=='choosing'||!SKINS[id]||id==='warrior')return false;
+  if(this.state!=='choosing'||!(id==='spirit'||id==='molten'||id==='wood'))return false;
   this.player.skin=id;
   this.chosenSkin=id;
   this.player.hp=Math.min(100,this.player.hp+25);

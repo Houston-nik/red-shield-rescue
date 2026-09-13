@@ -1,5 +1,6 @@
 import {Game,WORLD,WALLS,dist,SKINS} from './engine.js';
 import {createAtmosphere} from './music.js';
+import {loadWardrobe,unlockMage,unlockSkin,unlockRelic,equipSkin,skinMeta,relicMeta,WARDROBE_SKINS,WARDROBE_RELICS} from './wardrobe.js';
 const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d'),game=new Game();
 const keys=new Set(),input={x:0,y:0,attack:false,shield:false,interact:false};
 let width=innerWidth,height=innerHeight,dpr=1,camera={x:0,y:0},zoom=1,last=0,frame=0,previousState='ready',toastUntil=0,assetsReady=false,mouseDown=false,joy={x:0,y:0},touchAttack=false,touchShield=false,soundOn=true,audio=null,prevKills=0,prevBlocks=0,prevHp=100,lastAttack=0,prevSecrets=0;
@@ -42,13 +43,56 @@ function syncMusic(){
 function clearInput(){keys.clear();mouseDown=false;touchShield=false;touchAttack=false;joy={x:0,y:0};$('knob').style.transform='';$('shieldTouch').classList.remove('held');$('attackTouch').classList.remove('held');}
 function showToast(t){$('toast').textContent=t;$('toast').classList.add('show');toastUntil=performance.now()+4300;}
 function formatTime(t){return Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');}
-function savedSkin(){try{return localStorage.getItem('redShield.skin')||'';}catch{return '';}}
-function storeSkin(id){try{localStorage.setItem('redShield.skin',id);}catch{/* ignore private mode */}}
+function collection(){return loadWardrobe();}
 function refreshOwned(){
- const id=savedSkin();
+ const data=collection();
  const el=$('ownedSkin');
- if(id&&SKINS[id]&&id!=='warrior'){el.hidden=false;el.textContent='Твой облик: '+SKINS[id].name+'. В лабиринте можно выбрать снова.';}
+ const skin=SKINS[data.equipped];
+ if(skin&&data.equipped!=='warrior'){el.hidden=false;el.textContent='Надет: '+skin.name+'. Открой гардероб.';}
+ else if(data.mage||data.relics.length){el.hidden=false;el.textContent='В гардеробе есть находки.';}
  else el.hidden=true;
+}
+function renderWardrobe(){
+ const data=collection();
+ const skins=$('wardrobeSkins');
+ const relics=$('wardrobeRelics');
+ skins.innerHTML='';
+ relics.innerHTML='';
+ for(const id of WARDROBE_SKINS){
+  const meta=skinMeta(id);
+  const open=data.skins.includes(id);
+  const card=document.createElement(open?'button':'div');
+  card.className='ward-card'+(open?'':' locked');
+  if(open){card.type='button';card.dataset.equip=id;}
+  const visual=open?(id==='warrior'?'<div class="portrait">Λ</div>':`<img src="${meta.img}" alt="${meta.name}">`):'<div class="portrait mystery">?</div>';
+  card.innerHTML=`${visual}<strong>${open?meta.name:'???'}</strong><span>${open?meta.hint:'Ещё в лабиринте.'}</span>${open&&data.equipped===id?'<em class="badge">Надет</em>':''}`;
+  skins.appendChild(card);
+ }
+ for(const id of WARDROBE_RELICS){
+  const meta=relicMeta(id);
+  const open=data.relics.includes(id);
+  const card=document.createElement('div');
+  card.className='ward-card'+(open?'':' locked');
+  const mark=open?`<div class="relic-mark ${id}"></div>`:'<div class="portrait mystery">?</div>';
+  card.innerHTML=`${mark}<strong>${open?meta.name:'???'}</strong><span>${open?meta.hint:'Спрятана ближе к центру.'}</span>${open?'<em class="badge">Найдена</em>':''}`;
+  relics.appendChild(card);
+ }
+ const bits=[];
+ if(data.mage)bits.push('Маг найден');
+ const gifts=data.skins.filter(id=>id!=='warrior'&&id!=='mage');
+ if(gifts.length)bits.push('дар: '+gifts.map(id=>SKINS[id].name).join(', '));
+ if(data.relics.length)bits.push('пасхалки '+data.relics.length+'/2');
+ $('wardrobeCopy').textContent=bits.length?bits.join(' · '):'Пройди лабиринт — сюда придут Маг, выбранный облик и пасхалки.';
+}
+function openWardrobe(){
+ if(game.state==='playing'||game.state==='choosing'||game.state==='paused')return;
+ renderWardrobe();
+ $('wardrobe').hidden=false;
+ $('overlay').hidden=true;
+}
+function closeWardrobe(){
+ $('wardrobe').hidden=true;
+ if(game.state!=='playing'&&game.state!=='choosing')$('overlay').hidden=false;
 }
 function setPlayingUI(){
  const playing=game.state==='playing';
@@ -56,11 +100,13 @@ function setPlayingUI(){
  $('hud').hidden=!playing;
  $('desktopHelp').hidden=!playing||coarse;
  $('touch').hidden=!playing||!coarse;
- $('overlay').hidden=playing||choosing;
+ $('overlay').hidden=playing||choosing||!$('wardrobe').hidden;
  $('skinPick').hidden=!choosing;
  $('allyHud').hidden=!playing||game.mission!=='fort'||!game.rescued;
  $('secretHud').hidden=!playing||game.mission!=='maze';
  $('maze').hidden=game.state==='paused';
+ $('wardrobeBtn').hidden=game.state==='paused';
+ if(playing||choosing)$('wardrobe').hidden=true;
  if(!playing){$('interact').hidden=true;if(!choosing)$('toast').classList.remove('show');}
 }
 function rebuildMap(){
@@ -73,6 +119,8 @@ function begin(mission='fort'){
  if(!assetsReady)return;
  initSound();
  game.begin(mission);
+ const bag=collection();
+ game.applyCollection(bag.equipped,bag.relics);
  rebuildMap();
  clearInput();
  camera={x:game.player.x-200,y:game.player.y-200};
@@ -96,6 +144,8 @@ function pause(){
   $('menuCopy').textContent=game.mission==='maze'?'Коридоры никуда не убегут. Хранитель ждёт.':'Соберись с мыслями. Напарник ждёт.';
   $('play').textContent='ПРОДОЛЖИТЬ';
   $('maze').hidden=true;
+  $('wardrobe').hidden=true;
+  $('wardrobeBtn').hidden=true;
   $('restart').hidden=false;
   $('results').hidden=true;
   $('menuFoot').textContent='WASD: движение · F: удар · Пробел: щит';
@@ -110,6 +160,16 @@ function pause(){
 }
 $('play').onclick=()=>{if(game.state==='paused')pause();else begin('fort');};
 $('maze').onclick=()=>begin('maze');
+$('wardrobeBtn').onclick=openWardrobe;
+$('wardrobeBack').onclick=closeWardrobe;
+$('wardrobeSkins').onclick=e=>{
+ const card=e.target.closest('[data-equip]');
+ if(!card)return;
+ equipSkin(card.dataset.equip);
+ renderWardrobe();
+ refreshOwned();
+ tone(320,.08);
+};
 $('restart').onclick=()=>begin(game.mission==='maze'?'maze':'fort');
 $('pause').onclick=pause;
 $('sound').onclick=()=>{soundOn=!soundOn;initSound();music.setEnabled(soundOn);if(soundOn)syncMusic();$('sound').textContent=soundOn?'♪':'♪̸';$('sound').setAttribute('aria-label',soundOn?'Выключить звук':'Включить звук');$('sound').title=soundOn?'Музыка и звуки':'Звук выключен';};
@@ -117,7 +177,7 @@ $('interact').onclick=()=>{if(game.interact())tone(700,.2);};
 for(const btn of document.querySelectorAll('.skin-card')){
  btn.onclick=()=>{
   if(game.chooseSkin(btn.dataset.skin)){
-   storeSkin(btn.dataset.skin);
+   unlockSkin(btn.dataset.skin);
    refreshOwned();
    tone(520,.25);
   }
@@ -126,7 +186,10 @@ for(const btn of document.querySelectorAll('.skin-card')){
 addEventListener('keydown',e=>{
  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','KeyF','KeyE','Escape','KeyP'].includes(e.code))e.preventDefault();
  keys.add(e.code);
- if((e.code==='Escape'||e.code==='KeyP')&&!e.repeat)pause();
+ if((e.code==='Escape'||e.code==='KeyP')&&!e.repeat){
+  if(!$('wardrobe').hidden){closeWardrobe();return;}
+  pause();
+ }
  if(e.code==='KeyE'&&!e.repeat)game.interact();
 });
 addEventListener('keyup',e=>keys.delete(e.code));
@@ -190,6 +253,7 @@ buildMap();
 function playerKind(){
  const s=game.player.skin;
  if(s==='spirit'||s==='molten'||s==='wood')return s;
+ if(s==='mage')return 'hermit';
  return 'warrior';
 }
 function drawPaper(e,kind,scale=1){
@@ -322,6 +386,7 @@ function draw(){
 function showHomeButtons(win){
  $('play').hidden=false;
  $('maze').hidden=false;
+ $('wardrobeBtn').hidden=false;
  $('play').textContent=game.mission==='fort'?(win?'СЫГРАТЬ ЕЩЁ':'ПОПРОБОВАТЬ СНОВА'):'В ФОРТ';
  $('maze').textContent=game.mission==='maze'?(win?'ЛАБИРИНТ СНОВА':'СНОВА В КОРИДОРЫ'):'В ЛАБИРИНТ';
  $('restart').hidden=true;
@@ -352,7 +417,8 @@ function endScreen(){
  const secretBit=game.mission==='maze'?`<div><b>${game.secrets}/2</b><span>тайны</span></div>`:'';
  $('results').innerHTML=`<div><b>${formatTime(game.time)}</b><span>время</span></div><div><b>${game.kills}</b><span>побеждено</span></div><div><b>${game.blocks}</b><span>блоков щитом</span></div>${secretBit}`;
  showHomeButtons(win);
- $('menuFoot').textContent=win?(game.mission==='maze'?'Один облик. Свой. Можешь войти снова и выбрать иначе.':'Ты прикрывал. Он доверял. Вы справились.'):'Укрытие, щит, удар. И ещё один шанс.';
+ $('menuFoot').textContent=win?(game.mission==='maze'?'Облик лежит в гардеробе. Можешь надеть его перед новой миссией.':'Ты прикрывал. Он доверял. Вы справились.'):'Укрытие, щит, удар. И ещё один шанс.';
+ refreshOwned();
  setPlayingUI();
  tone(win?660:140,.3,'triangle');
  syncMusic();
@@ -394,7 +460,10 @@ function loop(t){
   lastAttack=game.player.swing;
   if(game.blocks>prevBlocks)tone(850,.075,'square',.025);
   if(game.kills>prevKills)tone(360,.11);
-  if(game.secrets>prevSecrets)tone(740,.18,'triangle',.04);
+  if(game.secrets>prevSecrets){
+   tone(740,.18,'triangle',.04);
+   for(const relic of game.relics)if(relic.used)unlockRelic(relic.id);
+  }
   if(game.player.hp<prevHp){tone(85,.15,'sawtooth',.055);syncMusic();}
   prevBlocks=game.blocks;prevKills=game.kills;prevHp=game.player.hp;prevSecrets=game.secrets;
   while(game.events.length)showToast(game.events.shift());
@@ -403,7 +472,7 @@ function loop(t){
   if(frame%4===0)syncMusic();
  }
  if(game.state!==previousState){
-  if(game.state==='choosing'){clearInput();setPlayingUI();syncMusic();tone(420,.2);}
+  if(game.state==='choosing'){clearInput();setPlayingUI();unlockMage();refreshOwned();syncMusic();tone(420,.2);}
   if(game.state==='won'||game.state==='lost')endScreen();
  }
  previousState=game.state;draw();music.tick();frame++;requestAnimationFrame(loop);
@@ -411,6 +480,7 @@ function loop(t){
 requestAnimationFrame(loop);
 window.redShield={
  status:()=>game.snapshot(),
+ wardrobe:()=>loadWardrobe(),
  audio:()=>({on:soundOn,ctx:audio?audio.state:'none',time:audio?Math.round(audio.currentTime*10)/10:0}),
  __test:{
   gotoHermit(){
@@ -420,6 +490,15 @@ window.redShield={
    game.player.hp=100;
    game.markSeen(true);
    return game.talkHermit();
+  },
+  collectRelic(){
+   if(game.mission!=='maze'||game.state!=='playing')return null;
+   const next=game.relics.find(r=>!r.used);
+   if(!next)return null;
+   game.player.x=next.x;
+   game.player.y=next.y;
+   game.markSeen(true);
+   return next.id;
   }
  }
 };
