@@ -35,7 +35,8 @@ function syncMusic(){
   place:game.mission==='maze'?'maze':'fort',
   beat:game.state,
   danger:foe?Math.max(0,1-dist(game.player,foe)/270):0,
-  hurt:game.player.hp<32
+  hurt:game.player.hp<32,
+  assault:game.assault()
  });
 }
 function clearInput(){keys.clear();mouseDown=false;touchShield=false;touchAttack=false;joy={x:0,y:0};$('knob').style.transform='';$('shieldTouch').classList.remove('held');$('attackTouch').classList.remove('held');}
@@ -394,12 +395,12 @@ function loop(t){
   if(game.blocks>prevBlocks)tone(850,.075,'square',.025);
   if(game.kills>prevKills)tone(360,.11);
   if(game.secrets>prevSecrets)tone(740,.18,'triangle',.04);
-  if(game.player.hp<prevHp)tone(85,.15,'sawtooth',.055);
+  if(game.player.hp<prevHp){tone(85,.15,'sawtooth',.055);syncMusic();}
   prevBlocks=game.blocks;prevKills=game.kills;prevHp=game.player.hp;prevSecrets=game.secrets;
   while(game.events.length)showToast(game.events.shift());
   if(t>toastUntil)$('toast').classList.remove('show');
   if(frame%5===0)updateHUD();
-  if(frame%8===0)syncMusic();
+  if(frame%4===0)syncMusic();
  }
  if(game.state!==previousState){
   if(game.state==='choosing'){clearInput();setPlayingUI();syncMusic();tone(420,.2);}

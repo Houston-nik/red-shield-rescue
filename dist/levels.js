@@ -133,8 +133,27 @@ export function createMazeLevel(seed=7741){
   if(openings(cells[y][x])===1&&dist[y][x]>2)dead.push({cx:x,cy:y,d:dist[y][x]});
  }
  dead.sort((a,b)=>b.d-a.d);
- const relicCells=dead.slice(0,2);
- const kitCells=dead.slice(2,5);
+ const mid=(n-1)/2;
+ const nearCenter=[];
+ for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+  if(x===start.cx&&y===start.cy)continue;
+  if(x===hermit.cx&&y===hermit.cy)continue;
+  if(dist[y][x]<4)continue;
+  nearCenter.push({cx:x,cy:y,d:dist[y][x],center:Math.abs(x-mid)+Math.abs(y-mid),dead:openings(cells[y][x])===1});
+ }
+ nearCenter.sort((a,b)=>{
+  if(a.dead!==b.dead)return a.dead?-1:1;
+  return a.center-b.center||a.d-b.d;
+ });
+ const relicCells=[];
+ for(const c of nearCenter){
+  if(relicCells.every(r=>Math.abs(r.cx-c.cx)+Math.abs(r.cy-c.cy)>=3)){
+   relicCells.push(c);
+   if(relicCells.length===2)break;
+  }
+ }
+ const kitPool=dead.filter(c=>!relicCells.some(r=>r.cx===c.cx&&r.cy===c.cy));
+ const kitCells=kitPool.slice(0,3);
  const used=new Set([
   `${start.cx},${start.cy}`,
   `${hermit.cx},${hermit.cy}`,

@@ -217,6 +217,20 @@ export class Game{
   this.player.shield=false;
   this.bullets=[];
  }
+ assault(){
+  if(this.state!=='playing')return 0;
+  const p=this.player;
+  let hit=0;
+  for(const e of this.enemies){
+   if(e.hp<=0||!e.active)continue;
+   const d=dist(p,e);
+   if(e.leap>0||e.wind>0)hit=Math.max(hit,1);
+   else if(d<80&&visible(p,e))hit=Math.max(hit,1);
+   else if(d<150&&visible(p,e))hit=Math.max(hit,.45);
+  }
+  if(p.inv>0.4)hit=Math.max(hit,1);
+  return hit;
+ }
  nearest(e,range=Infinity){
   let best=null;
   for(const a of this.enemies){
