@@ -60,6 +60,7 @@ function begin(mission='fort'){
  $('overlay').className='overlay';
  $('skinPick').hidden=true;
  setPlayingUI();
+ updateHUD();
  tone(380,.12);
 }
 function pause(){
@@ -208,12 +209,13 @@ function marker(x,y,color,label){ctx.save();ctx.translate(x,y);ctx.strokeStyle=c
 function arrowTo(target,label,color){const sx=(target.x-camera.x)*zoom,sy=(target.y-camera.y-50)*zoom;if(sx>65&&sx<width-65&&sy>145&&sy<height-100)return;const cx=width/2,cy=height/2,a=Math.atan2(sy-cy,sx-cx),rx=width/2-65,ry=height/2-125,t=Math.min(rx/Math.max(.001,Math.abs(Math.cos(a))),Math.max(45,ry)/Math.max(.001,Math.abs(Math.sin(a)))),x=cx+Math.cos(a)*t,y=cy+Math.sin(a)*t;ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(-9,-10);ctx.lineTo(-5,0);ctx.lineTo(-9,10);ctx.closePath();ctx.fill();ctx.restore();ctx.fillStyle='#312f2d';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillText(label,x,y+26);}
 function drawFog(){
  if(game.mission!=='maze')return;
+ ctx.fillStyle='#140f0c';
+ ctx.fillRect(0,0,WORLD.w,WORLD.h);
  const step=48;
- ctx.fillStyle='#161310e8';
- for(let x=0;x<WORLD.w;x+=step){
-  for(let y=0;y<WORLD.h;y+=step){
-   if(!game.seen.has(`${Math.floor((x+step/2)/step)},${Math.floor((y+step/2)/step)}`))ctx.fillRect(x,y,step,step);
-  }
+ for(const key of game.seen){
+  const [gx,gy]=key.split(',').map(Number);
+  const x=gx*step,y=gy*step;
+  ctx.drawImage(map,x,y,step+1,step+1,x,y,step+1,step+1);
  }
 }
 function minimap(){
@@ -251,8 +253,8 @@ function draw(){
   ctx.save();ctx.translate(relic.x,relic.y);ctx.rotate(game.time);ctx.fillStyle=relic.id==='ember'?'#d27a22':'#4f7a3a';ctx.beginPath();ctx.moveTo(0,-13);ctx.lineTo(10,0);ctx.lineTo(0,13);ctx.lineTo(-10,0);ctx.closePath();ctx.fill();ctx.restore();
  }
  if(game.mission==='maze'){
-  if(!game.foundHermit)marker(game.hermit.x,game.hermit.y,'#6b4ea1','ХРАНИТЕЛЬ');
-  marker(game.ally.x,game.ally.y,'#2c7f92','ЖДЁТ ЗДЕСЬ');
+  if(!game.foundHermit&&game.isSeen(game.hermit.x,game.hermit.y))marker(game.hermit.x,game.hermit.y,'#6b4ea1','ХРАНИТЕЛЬ');
+  if(game.isSeen(game.ally.x,game.ally.y)||dist(game.player,game.ally)<220)marker(game.ally.x,game.ally.y,'#2c7f92','ЖДЁТ ЗДЕСЬ');
  }else if(!game.rescued){
   marker(game.ally.x,game.ally.y,'#2c7f92','НАПАРНИК');
   ctx.strokeStyle='#645b4ca0';ctx.lineWidth=3;
@@ -307,6 +309,8 @@ function endScreen(){
  $('overlay').className='overlay end';
  $('cast').hidden=true;
  $('skinPick').hidden=true;
+ $('toast').classList.remove('show');
+ $('toast').textContent='';
  if(game.mission==='maze'){
   const skin=SKINS[game.chosenSkin];
   $('menuTitle').innerHTML=win?'ДАР<br><em>ПРИНЯТ</em>':'ЕЩЁ<br><em>ПОПЫТКА?</em>';
