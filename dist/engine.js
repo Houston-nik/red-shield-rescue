@@ -1,4 +1,4 @@
-import {FORT_WORLD,FORT_WALLS,SKINS,RELICS,createForestLevel,createDesertLevel,createReefLevel} from './levels.js';
+import {FORT_WORLD,FORT_WALLS,SKINS,RELICS,createForestLevel,createDesertLevel,createReefLevel,reefTunnel} from './levels.js';
 
 export const WORLD={w:FORT_WORLD.w,h:FORT_WORLD.h};
 export const WALLS=FORT_WALLS.map(w=>({...w}));
@@ -831,7 +831,13 @@ export class Game{
    const swim=st.speed*(p.shield?.28:.46);
    let vx=current+mx*swim;
    if(vx<30)vx=30;
-   move(p,vx*dt,my*swim*1.25*dt);
+   const groove=reefTunnel(p.x+90);
+   let vy=my*swim*1.35;
+   if(Math.abs(my)<.2){
+    const dy=groove.mid-p.y;
+    vy+=Math.max(-80,Math.min(80,dy*1.25));
+   }
+   move(p,vx*dt,vy*dt);
    if(p.x<this.wake)p.x=this.wake;
    this.wake=Math.max(this.wake,p.x-280);
   }else{
@@ -855,8 +861,10 @@ export class Game{
    if(this.mission==='fort'&&this.rescued&&dist(e,this.ally)<dist(e,p)*.78)aim=this.ally;
    const d=dist(e,aim);
    if(this.mission==='reef'){
-    if(e.type!=='maw'&&(e.x>p.x+740||e.x<p.x-260))continue;
-    e.active=true;
+    if(e.type==='maw'){
+     if(d>780)continue;
+    }else if(e.x>p.x+740||e.x<p.x-260)continue;
+    else e.active=true;
    }else if(d<470)e.active=true;
    if(!e.active||e.stagger>0)continue;
    e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);

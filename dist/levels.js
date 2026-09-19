@@ -134,28 +134,29 @@ export function createForestLevel(){
 export const REEF_WORLD={w:16800,h:1000};
 
 export function reefTunnel(x){
- const wave=Math.sin(x/620)*200+Math.sin(x/1280)*90;
- const gap=x>15600?640:(370+Math.sin(x/440)*55);
+ const fade=Math.min(1,Math.max(0,(x-280)/1600));
+ const wave=(Math.sin(x/720)*160+Math.sin(x/1480)*70)*fade;
+ const gap=x>15600?700:(500+Math.sin(x/480)*36);
  const mid=500+wave;
- const y=Math.max(70,Math.min(REEF_WORLD.h-70-gap,mid-gap/2));
+ const y=Math.max(60,Math.min(REEF_WORLD.h-60-gap,mid-gap/2));
  return {y,h:gap,mid:y+gap/2};
 }
 
 export function createReefLevel(){
  const world={...REEF_WORLD};
- const rooms=[{x:20,y:250,w:680,h:520}];
- for(let x=160;x<15720;x+=110){
+ const rooms=[];
+ for(let x=20;x<15720;x+=100){
   const t=reefTunnel(x);
-  rooms.push({x,y:t.y,w:190,h:t.h});
+  rooms.push({x,y:t.y-28,w:220,h:t.h+56});
  }
- rooms.push({x:15560,y:130,w:1200,h:760});
+ rooms.push({x:15560,y:90,w:1220,h:820});
  const walls=carveRooms(world,rooms,40);
  for(let x=980;x<15200;x+=820){
   const t=reefTunnel(x);
-  walls.push({x:x+30,y:t.y+16,w:44,h:66});
-  walls.push({x:x+310,y:t.y+t.h-82,w:52,h:60});
+  walls.push({x:x+30,y:t.y+8,w:40,h:48});
+  walls.push({x:x+310,y:t.y+t.h-56,w:48,h:46});
  }
- const start={x:240,y:500};
+ const start={x:240,y:reefTunnel(240).mid};
  const maw={x:16240,y:500};
  const enemies=[];
  const pickups=[];

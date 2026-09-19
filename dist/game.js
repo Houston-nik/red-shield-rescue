@@ -415,7 +415,7 @@ function minimap(){
 function draw(){
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);ctx.fillStyle=game.mission==='reef'?'#14384a':'#e7ddc8';ctx.fillRect(0,0,width,height);
  const focus=game.state==='ready'?{x:WORLD.w*0.45,y:WORLD.h*0.48}:game.player;
- const ahead=game.mission==='reef'?0.28:0.47;
+ const ahead=game.mission==='reef'?(focus.x>WORLD.w-1100?0.52:0.32):0.47;
  const tx=Math.max(0,Math.min(WORLD.w-width/zoom,focus.x-width/zoom*ahead));
  const ty=Math.max(0,Math.min(WORLD.h-height/zoom,focus.y-height/zoom*.56));
  camera.x+=(tx-camera.x)*.12;camera.y+=(ty-camera.y)*.12;
@@ -485,7 +485,7 @@ function draw(){
    ctx.strokeStyle='#b62e3455';ctx.setLineDash([6,8]);ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(e.x,e.y-10);ctx.lineTo(e.x+Math.cos(e.angle)*250,e.y+Math.sin(e.angle)*250-10);ctx.stroke();ctx.setLineDash([]);
    ctx.fillStyle='#bc3137';ctx.font='bold 24px Arial';ctx.textAlign='center';ctx.fillText('!',e.x,e.y-105);
   }
-  const scale=e.type==='maw'?1.55:e.type==='drywind'?1.42:e.type==='warden'?1.38:e.type==='boss'?1.22:e.type==='beast'||e.type==='scorpion'?1.08:e.type==='vulture'?1.12:e.type==='eel'?1.2:e.type==='crab'||e.type==='jelly'?1.05:e.type==='piranha'?.82:e.type==='melee'?.9:kind==='craft'?1.18:kind==='hermit'?1.12:1;
+  const scale=e.type==='maw'?1.22:e.type==='drywind'?1.42:e.type==='warden'?1.38:e.type==='boss'?1.22:e.type==='beast'||e.type==='scorpion'?1.08:e.type==='vulture'?1.12:e.type==='eel'?1.2:e.type==='crab'||e.type==='jelly'?1.05:e.type==='piranha'?.82:e.type==='melee'?.9:kind==='craft'?1.18:kind==='hermit'?1.12:1;
   drawActor(e,kind,scale);
   if(e.type==='boss'){ctx.fillStyle='#463d2c';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillText('ЖЁЛТЫЙ ШАРФ',e.x,e.y-151);}
   if(e.type==='beast'){ctx.fillStyle='#5a1d1d';ctx.font='bold 11px Arial';ctx.textAlign='center';ctx.fillText('ТВАРЬ',e.x,e.y-122);}
@@ -802,7 +802,7 @@ window.redShield={
    if(game.mission!=='reef'||game.state!=='playing')return false;
    const maw=game.enemies.find(e=>e.type==='maw'&&e.hp>0);
    if(!maw)return false;
-   game.player.x=maw.x-140;
+   game.player.x=maw.x-220;
    game.player.y=maw.y;
    game.player.hp=100;
    game.player.energy=100;
