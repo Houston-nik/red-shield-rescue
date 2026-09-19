@@ -289,11 +289,14 @@ function buildMap(){
    m.quadraticCurveTo(x+16,t.y+t.h+28,x+24,t.y+t.h+58+rnd()*16);
    m.quadraticCurveTo(x+10,t.y+t.h+14,x,t.y+t.h-4);
    m.fill();
-   if(x%132<44){
-    m.strokeStyle='#2f6a48';m.lineWidth=5;m.beginPath();
+   if(x%280<44){
+    m.strokeStyle='#2f6a48';m.lineWidth=8;m.beginPath();
     m.moveTo(x+10,t.y+t.h-2);
-    m.quadraticCurveTo(x-18,t.y+t.h*.55,x+8,t.y+18);
+    m.quadraticCurveTo(x-40,t.y+t.h*.7,x+6,t.y+t.h*.45);
     m.stroke();
+    m.fillStyle='#3d8a58cc';
+    m.beginPath();m.ellipse(x-6,t.y+t.h*.62,14,8, -.4,0,Math.PI*2);m.fill();
+    m.beginPath();m.ellipse(x+18,t.y+t.h*.52,12,7,.5,0,Math.PI*2);m.fill();
    }
    if(x%176<44){
     m.fillStyle='#c45a6acc';
@@ -390,8 +393,8 @@ function drawBlade(p){
  const max=.42,k=swinging?Math.max(0,Math.min(1,1-p.swing/max)):0;
  const rest=(p.swingA??p.angle)-.55;
  const a=swinging?rest+k*2.35:rest;
- const len=reef?148:96;
- const ox=reef?28:0,oy=reef?4:-22;
+ const len=reef?(swinging?152:108):96;
+ const ox=reef?10:0,oy=reef?-38:-22;
  ctx.save();
  ctx.translate(p.x+ox,p.y+oy);
  if(swinging){
@@ -551,7 +554,7 @@ function drawReefWater(){
 function draw(){
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);ctx.fillStyle=game.mission==='reef'?'#0d3a4e':'#e7ddc8';ctx.fillRect(0,0,width,height);
  const focus=game.state==='ready'?{x:WORLD.w*0.45,y:WORLD.h*0.48}:game.player;
- const ahead=game.mission==='reef'?(game.reefArena()?0.5:0.32):0.47;
+ const ahead=game.mission==='reef'?(game.reefArena()?0.62:0.32):0.47;
  const tx=Math.max(0,Math.min(WORLD.w-width/zoom,focus.x-width/zoom*ahead));
  const ty=Math.max(0,Math.min(WORLD.h-height/zoom,focus.y-height/zoom*.56));
  camera.x+=(tx-camera.x)*.12;camera.y+=(ty-camera.y)*.12;
@@ -597,12 +600,12 @@ function draw(){
   for(let i=0;i<5;i++){ctx.beginPath();ctx.moveTo(2020+i*40,335);ctx.lineTo(2020+i*40,565);ctx.stroke();}
  }else marker(game.exit.x,game.exit.y,'#3b8774','СЮДА, ВМЕСТЕ!');
  const art={beast:'beast',warden:'warden',burrow:'burrow',vulture:'vulture',scorpion:'scorpion',mirage:'mirage',drywind:'drywind',piranha:'piranha',jelly:'jelly',eel:'eel',crab:'crab',maw:'maw'};
- const entities=[
+ const others=[
   ...game.enemies.filter(e=>e.hp>0).map(e=>({e,kind:art[e.type]||'bandit'})),
-  {e:game.ally,kind:'cowboy'},
-  {e:game.player,kind:game.mission==='reef'?'craft':playerKind()}
+  {e:game.ally,kind:'cowboy'}
  ].sort((a,b)=>a.e.y-b.e.y);
- for(const{e,kind} of entities){
+ const self={e:game.player,kind:game.mission==='reef'?'craft':playerKind()};
+ for(const{e,kind} of [...others,self]){
   if(e.x<camera.x-100||e.x>camera.x+width/zoom+100||e.y<camera.y-100||e.y>camera.y+height/zoom+120)continue;
   if(game.fogMission()&&kind!=='warrior'&&kind!==playerKind()&&!game.isSeen(e.x,e.y)&&kind!=='cowboy')continue;
   const sneak=game.mission==='reef'||e.type==='piranha'||e.type==='jelly'||e.type==='eel'||e.type==='crab'||e.type==='maw';

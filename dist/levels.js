@@ -131,7 +131,7 @@ export function createForestLevel(){
  };
 }
 
-export const REEF_WORLD={w:16800,h:1000};
+export const REEF_WORLD={w:17600,h:1000};
 
 export function reefTunnel(x){
  const fade=Math.min(1,Math.max(0,(x-280)/1600));
@@ -149,7 +149,7 @@ export function createReefLevel(){
   const t=reefTunnel(x);
   rooms.push({x,y:t.y-28,w:220,h:t.h+56});
  }
- rooms.push({x:15560,y:90,w:1220,h:820});
+ rooms.push({x:15560,y:90,w:1980,h:820});
  const walls=carveRooms(world,rooms,40);
  for(let x=980;x<15200;x+=820){
   const t=reefTunnel(x);
