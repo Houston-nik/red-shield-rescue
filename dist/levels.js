@@ -102,8 +102,8 @@ export function createDesertLevel(){
   pickups:[{x:420,y:1280,used:false},{x:1540,y:680,used:false},{x:2520,y:720,used:false}],
   relics:[{...RELICS.fang,x:1860,y:130,used:false}],
   enemies:[
-   {type:'burrow',x:780,y:1350},
-   {type:'burrow',x:1180,y:1365},
+   {type:'burrow',x:1080,y:1360},
+   {type:'burrow',x:1320,y:1365},
    {type:'burrow',x:1540,y:920},
    {type:'vulture',x:1540,y:540},
    {type:'vulture',x:2480,y:780},
