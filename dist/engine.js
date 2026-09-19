@@ -814,6 +814,7 @@ export class Game{
   for(const b of this.beats){
    if(b.done||this.player.x<b.x)continue;
    b.done=true;
+   if(this.player.x>b.x+380)continue;
    this.startBeat(b.kind);
   }
  }
@@ -1191,7 +1192,7 @@ export class Game{
   const drywind=this.enemies.find(e=>e.type==='drywind'&&e.hp>0)||null;
   const maw=this.enemies.find(e=>e.type==='maw'&&e.hp>0)||null;
   const objective=this.mission==='reef'
-   ?(maw?(maw.open>0?'Пасть открылась — бей!':'Плыви вперёд. В конце — Пасть рифа'):'Пасть пала')
+   ?(maw?(this.swallowed||maw.move==='belly'?'Руби сердце внутри':maw.move==='inhale'?'Затягивает — в сторону или внутрь':(maw.lureFlash||0)>0?'Руби мигающий фонарь':'Не верь фонарю, жди мигания'):'Пасть пала')
    :this.mission==='forest'
     ?(warden?(warden.bundleBroken?'Страж в ярости — бей':'Дождись открытия и бей Стража'):'Страж пал')
     :this.mission==='desert'
