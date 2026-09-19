@@ -245,6 +245,7 @@ export class Game{
    cd:.8+(x%5)*.2,inv:0,angle:0,wind:0,active:false,stagger:0,moving:false,leap:0,
    open:0,bundleBroken:false,move:'idle',pattern:0,smashIn:0,chargeT:0,
    buried:type==='burrow'?1.2:0,fake:!!extra.fake,homeX:extra.homeX??x,homeY:extra.homeY??y,
+   hiding:type==='piranha'||type==='jelly'||type==='eel'||type==='crab',
    ...extra
   });
  }
@@ -253,7 +254,7 @@ export class Game{
   this.mission=mission==='reef'?'reef':mission==='forest'?'forest':mission==='desert'?'desert':'fort';
   this.reset();
   this.state='playing';
-  if(this.mission==='reef')this.emit('Ковбой у берега. Течение несёт вперёд. Пираньи стаей. Пузырь — щит со всех сторон. В конце — Пасть рифа.');
+  if(this.mission==='reef')this.emit('Ковбой у берега. Течение несёт вперёд. В воде кто-то прячется. Пузырь — щит со всех сторон.');
   else if(this.mission==='forest')this.emit('Ковбой на опушке. В глубине — Страж леса. Щит ловит брёвна. Бей, когда вязанка открылась.');
   else if(this.mission==='desert')this.emit('Ковбой на опушке дюн. В храме — плащ Сирокко. Пескорои бьют из-под земли. Мираж без тени — фальшивка.');
   else this.emit('Ковбой в дальнем дворе. Щит: пробел. Удар: мышь или F.');
@@ -661,49 +662,58 @@ export class Game{
  }
  thinkPiranha(e,aim,dt){
   const d=dist(e,aim);
+  e.wind=0;
+  if(d>250){e.hiding=true;return;}
+  if(e.hiding){
+   e.hiding=false;
+   e.leap=.4;
+   e.cd=1.15;
+  }
   e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
-  if(d>36)chase(e,aim,e.leap>0?260:165,dt);
-  if(d<210&&d>50&&e.cd<=0){e.leap=.28;e.cd=1.45;e.wind=.2;}
-  else e.wind=e.leap>0?.18:0;
+  if(d>36)chase(e,aim,e.leap>0?330:195,dt);
   if(d<42&&e.cd<=1){e.cd=1.05;this.hit(aim,7,e);}
  }
  thinkJelly(e,aim,dt){
   const d=dist(e,aim);
+  e.wind=0;
+  if(d>260){e.hiding=true;return;}
+  e.hiding=false;
   e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
   chase(e,{x:e.homeX,y:aim.y*0.15+e.homeY*0.85},28,dt);
   if(e.cd<=0){
-   e.cd=2.3;
-   e.wind=.4;
-   this.hazards.push({kind:'ink',x:e.x,y:e.y,r:54,wait:.35,life:.7,dmg:12,armed:false,struck:false});
-   this.effect(e.x,e.y-70,'~','#3aa0a8');
+   e.cd=2.15;
+   this.hazards.push({kind:'ink',x:e.x,y:e.y,r:54,wait:0,life:.55,dmg:12,armed:false,struck:false});
   }
-  if(d<48&&e.wind>0)this.hit(aim,9,e);
+  if(d<48)this.hit(aim,9,e);
  }
  thinkEel(e,aim,dt){
   const d=dist(e,aim);
-  e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+  e.wind=0;
   if(e.leap>0){
-   move(e,Math.cos(e.angle)*280*dt,Math.sin(e.angle)*280*dt);
-   e.wind=.3;
+   e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+   move(e,Math.cos(e.angle)*320*dt,Math.sin(e.angle)*320*dt);
    if(d<e.r+aim.r+6)this.hit(aim,13,e);
    return;
   }
-  if(d<240&&visible(e,aim)&&e.cd<=0){
-   e.leap=.46;
-   e.cd=2.1;
-   e.wind=.45;
-   this.effect(e.x,e.y-80,'!','#2ee0d0');
+  if(d>230){e.hiding=true;return;}
+  if(e.cd<=0&&(e.hiding||visible(e,aim))){
+   e.hiding=false;
+   e.leap=.42;
+   e.cd=1.85;
+   e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
   }else chase(e,{x:e.homeX,y:e.homeY},40,dt);
  }
  thinkCrab(e,aim,dt){
   const d=dist(e,aim);
+  e.wind=0;
+  if(d>240){e.hiding=true;return;}
+  e.hiding=false;
   e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
-  if(d>90)chase(e,aim,48,dt);
-  if(d<230&&visible(e,aim)&&e.cd<=0){
-   e.cd=2.05;
-   e.wind=.35;
+  if(d>90)chase(e,aim,58,dt);
+  if(d<200&&e.cd<=0){
+   e.cd=1.7;
    const a=e.angle;
-   this.bullets.push({x:e.x+Math.cos(a)*24,y:e.y+Math.sin(a)*24,dx:Math.cos(a),dy:Math.sin(a),speed:260,life:1.8,friendly:false,damage:11,kind:'spine',r:8});
+   this.bullets.push({x:e.x+Math.cos(a)*24,y:e.y+Math.sin(a)*24,dx:Math.cos(a),dy:Math.sin(a),speed:300,life:1.5,friendly:false,damage:11,kind:'spine',r:8});
   }
   if(d<55&&e.cd<=.8){e.cd=1.2;this.hit(aim,10,e);}
  }
@@ -723,7 +733,7 @@ export class Game{
    const a=i/n*Math.PI*2;
    spots.push({x:aim.x+Math.cos(a)*120,y:aim.y+Math.sin(a)*90});
   }
-  for(const s of spots)this.hazards.push({kind:'ink',x:s.x,y:s.y,r:rage?48:40,wait:rage?.55:.85,life:.55,dmg:rage?16:13,armed:false,struck:false});
+  for(const s of spots)this.hazards.push({kind:'ink',x:s.x,y:s.y,r:rage?48:40,wait:rage?.08:.14,life:.5,dmg:rage?16:13,armed:false,struck:false});
  }
  thinkMaw(e,aim,dt){
   e.open=Math.max(0,(e.open||0)-dt);
@@ -760,14 +770,12 @@ export class Game{
    e.cd=rage?2.05:2.6;
    e.open=rage?.75:1.1;
    e.wind=0;
-   this.emit('Чернильные круги! Выплыви или закрой пузырь.');
   }else if(step===1){
    this.mawSpit(e,aim,rage);
    e.move='spit';
    e.cd=rage?1.85:2.35;
    e.open=rage?.8:1.15;
    e.wind=0;
-   this.emit('Пасть плюёт иглами. Пузырь ловит.');
   }else if(step===2){
    e.move='open';
    e.cd=rage?1.35:1.85;
@@ -780,10 +788,15 @@ export class Game{
    e.cd=rage?2.15:2.7;
    e.open=0;
    e.wind=.42;
-   this.emit('Пасть несётся. Вверх или вниз.');
   }
  }
  fogMission(){return this.mission==='forest'||this.mission==='desert'}
+ reefArena(){
+  if(this.mission!=='reef')return false;
+  const maw=this.maw&&this.maw.hp>0?this.maw:null;
+  if(!maw)return false;
+  return this.player.x>15980||(maw.active&&dist(this.player,maw)<900);
+ }
  markSeen(force=false){
   if(!this.fogMission()&&!force)return;
   const p=this.player;
@@ -827,19 +840,26 @@ export class Game{
   else if(this.mission==='reef')p.angle=0;
   else if(l>.05)p.angle=Math.atan2(my,mx);
   if(this.mission==='reef'){
-   const current=p.skin==='nautilus'?108:90;
-   const swim=st.speed*(p.shield?.28:.46);
-   let vx=current+mx*swim;
-   if(vx<30)vx=30;
-   const groove=reefTunnel(p.x+90);
-   let vy=my*swim*1.35;
-   if(Math.abs(my)<.2){
-    const dy=groove.mid-p.y;
-    vy+=Math.max(-80,Math.min(80,dy*1.25));
+   if(this.reefArena()){
+    const swim=st.speed*(p.shield?.42:1.05);
+    move(p,mx*swim*dt,my*swim*dt);
+    this.wake=Math.min(this.wake,15760);
+    if(p.x<this.wake)p.x=this.wake;
+   }else{
+    const current=p.skin==='nautilus'?108:90;
+    const swim=st.speed*(p.shield?.28:.46);
+    let vx=current+mx*swim;
+    if(vx<30)vx=30;
+    const groove=reefTunnel(p.x+90);
+    let vy=my*swim*1.35;
+    if(Math.abs(my)<.2){
+     const dy=groove.mid-p.y;
+     vy+=Math.max(-80,Math.min(80,dy*1.25));
+    }
+    move(p,vx*dt,vy*dt);
+    if(p.x<this.wake)p.x=this.wake;
+    this.wake=Math.max(this.wake,p.x-280);
    }
-   move(p,vx*dt,vy*dt);
-   if(p.x<this.wake)p.x=this.wake;
-   this.wake=Math.max(this.wake,p.x-280);
   }else{
    const speed=p.shield?Math.min(96,st.speed*.5):st.speed;
    move(p,mx*speed*dt,my*speed*dt);
@@ -848,9 +868,11 @@ export class Game{
   if(input.attack&&p.cd<=0){
    p.shield=false;
    p.cd=st.cd;
-   p.swing=.22;
+   p.swing=.42;
+   p.swingA=p.angle;
+   const reach=st.range+(this.mission==='reef'?42:0);
    for(const e of this.enemies){
-    if(e.hp>0&&dist(p,e)<st.range&&visible(p,e)&&(this.mission==='reef'||Math.cos(Math.atan2(e.y-p.y,e.x-p.x)-p.angle)>.12))this.hit(e,st.dmg,p);
+    if(e.hp>0&&dist(p,e)<reach&&visible(p,e)&&(this.mission==='reef'||Math.cos(Math.atan2(e.y-p.y,e.x-p.x)-p.angle)>.12))this.hit(e,st.dmg,p);
    }
    this.effects.push({x:p.x,y:p.y,text:'',color:'#f7edcc',t:.18,max:.18,swing:true,angle:p.angle,range:st.range});
   }
@@ -863,7 +885,7 @@ export class Game{
    if(this.mission==='reef'){
     if(e.type==='maw'){
      if(d>780)continue;
-    }else if(e.x>p.x+740||e.x<p.x-260)continue;
+    }else if(d>280)continue;
     else e.active=true;
    }else if(d<470)e.active=true;
    if(!e.active||e.stagger>0)continue;
