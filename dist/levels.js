@@ -133,6 +133,18 @@ export function createForestLevel(){
 
 export const REEF_WORLD={w:17600,h:1000};
 
+export const REEF_BEATS=[
+ {x:1680,kind:'snap'},
+ {x:2920,kind:'darklash'},
+ {x:4300,kind:'net'},
+ {x:5720,kind:'rip'},
+ {x:7080,kind:'clam'},
+ {x:9720,kind:'shock'},
+ {x:11440,kind:'whirl'},
+ {x:13280,kind:'decoy'},
+ {x:14840,kind:'squeeze'}
+];
+
 export function reefTunnel(x){
  const fade=Math.min(1,Math.max(0,(x-280)/1600));
  const wave=(Math.sin(x/720)*160+Math.sin(x/1480)*70)*fade;
@@ -160,21 +172,13 @@ export function createReefLevel(){
  const maw={x:16240,y:500};
  const enemies=[];
  const pickups=[];
- for(let x=780;x<15300;x+=400){
+ const crabAt=reefTunnel(6400);
+ enemies.push({type:'crab',x:6420,y:crabAt.y+crabAt.h-54});
+ const crab2=reefTunnel(10880);
+ enemies.push({type:'crab',x:10900,y:crab2.y+crab2.h-54});
+ for(let x=1500;x<15000;x+=1900){
   const t=reefTunnel(x);
-  const band=Math.floor(x/400);
-  if(band%3===0){
-   enemies.push({type:'piranha',x:x+36,y:t.mid-46});
-   enemies.push({type:'piranha',x:x+88,y:t.mid+8});
-   enemies.push({type:'piranha',x:x+54,y:t.mid+52});
-  }else if(band%3===1){
-   enemies.push({type:'jelly',x:x+70,y:t.mid-16});
-   if(band%6===1)enemies.push({type:'eel',x:x+130,y:t.y+48});
-  }else{
-   enemies.push({type:'crab',x:x+48,y:t.y+t.h-54});
-   if(band%6===2)enemies.push({type:'jelly',x:x+170,y:t.mid+10});
-  }
-  if(band%4===0)pickups.push({x:x+24,y:t.mid,used:false});
+  pickups.push({x,y:t.mid,used:false});
  }
  const pearlAt=reefTunnel(8480);
  return {

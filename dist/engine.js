@@ -1,4 +1,4 @@
-import {FORT_WORLD,FORT_WALLS,SKINS,RELICS,createForestLevel,createDesertLevel,createReefLevel,reefTunnel} from './levels.js';
+import {FORT_WORLD,FORT_WALLS,SKINS,RELICS,createForestLevel,createDesertLevel,createReefLevel,reefTunnel,REEF_BEATS} from './levels.js';
 
 export const WORLD={w:FORT_WORLD.w,h:FORT_WORLD.h};
 export const WALLS=FORT_WALLS.map(w=>({...w}));
@@ -137,6 +137,19 @@ export class Game{
   this.cloak=null;
   this.maw=null;
   this.wake=0;
+  this.dark=0;
+  this.pullX=0;
+  this.pullY=0;
+  this.whirl=0;
+  this.whirlX=0;
+  this.whirlY=0;
+  this.rip=0;
+  this.netT=0;
+  this.netGap=500;
+  this.decoy=0;
+  this.shake=0;
+  this.swallowed=false;
+  this.beats=[];
   if(this.mission==='reef')this.setupReef();
   else if(this.mission==='forest')this.setupForest();
   else if(this.mission==='desert')this.setupDesert();
@@ -166,8 +179,9 @@ export class Game{
   this.relics=level.relics.map(r=>({...r}));
   this.hazards=[];
   this.wake=level.start.x-40;
+  this.beats=REEF_BEATS.map(b=>({...b,done:false}));
   for(const e of level.enemies)this.spawn(e.type,e.x,e.y);
-  this.spawn('maw',level.maw.x,level.maw.y);
+  this.spawn('maw',level.maw.x,level.maw.y,{move:'circle',cd:.25,lureHits:0,lureFlash:0,open:0});
   this.maw=this.enemies.find(e=>e.type==='maw')||null;
  }
  setupForest(){
@@ -254,7 +268,7 @@ export class Game{
   this.mission=mission==='reef'?'reef':mission==='forest'?'forest':mission==='desert'?'desert':'fort';
   this.reset();
   this.state='playing';
-  if(this.mission==='reef')this.emit('Ковбой у берега. Течение несёт вперёд. В воде кто-то прячется. Пузырь — щит со всех сторон.');
+  if(this.mission==='reef')this.emit('Ковбой у берега. Не верь огонькам в воде. Фонарь рыбы — чаще ловушка.');
   else if(this.mission==='forest')this.emit('Ковбой на опушке. В глубине — Страж леса. Щит ловит брёвна. Бей, когда вязанка открылась.');
   else if(this.mission==='desert')this.emit('Ковбой на опушке дюн. В храме — плащ Сирокко. Пескорои бьют из-под земли. Мираж без тени — фальшивка.');
   else this.emit('Ковбой в дальнем дворе. Щит: пробел. Удар: мышь или F.');
@@ -358,9 +372,14 @@ export class Game{
    damage=Math.max(1,Math.floor(damage*.22));
    this.effect(target.x,target.y-82,'БУРЯ','#c4a574');
   }
-  if(this.enemies.includes(target)&&target.type==='maw'&&!(target.open>0)){
-   damage=Math.max(1,Math.floor(damage*.2));
-   this.effect(target.x,target.y-90,'ЧЕШУЯ','#2a6a7a');
+  if(this.enemies.includes(target)&&target.type==='maw'){
+   if(this.swallowed){
+    damage=Math.floor(damage*1.45);
+    this.effect(target.x,target.y-90,'СЕРДЦЕ','#ff6a6a');
+   }else if(!(target.open>0)){
+    this.effect(target.x,target.y-90,'ЧЕШУЯ','#2a6a7a');
+    return;
+   }
   }
   target.hp=Math.max(0,target.hp-damage);
   target.inv=target===this.player?.75:target===this.ally?.85:target.type==='warden'||target.type==='drywind'||target.type==='maw'?.12:.18;
@@ -384,7 +403,7 @@ export class Game{
     this.emit('Настоящий мираж пал.');
    }
   }
-  const lost=this.mission==='reef'?'Аппарат треснул. Пузырь — щит со всех сторон. Пираний бей, пока они в стае. Пасть бей, когда пасть открылась.':this.mission==='forest'?'Страж сломал тебя. Щит ловит брёвна, удар — когда вязанка открылась.':this.mission==='desert'?'Пустыня забрала тебя. Пескорой бьёт снизу. Мираж без тени — фальшивка. Суховея бей в тишине.':'Воин пал. Поднимай щит перед выстрелом и наступай во время перезарядки.';
+  const lost=this.mission==='reef'?'Аппарат треснул. Не руби тусклый фонарь — это ловушка. Жди мигания, потом бей приманку. Когда затягивает — в сторону к жабрам или внутрь к сердцу.':this.mission==='forest'?'Страж сломал тебя. Щит ловит брёвна, удар — когда вязанка открылась.':this.mission==='desert'?'Пустыня забрала тебя. Пескорой бьёт снизу. Мираж без тени — фальшивка. Суховея бей в тишине.':'Воин пал. Поднимай щит перед выстрелом и наступай во время перезарядки.';
   if(this.player.hp<=0)this.finish(false,lost);
   else if(this.mission==='fort'&&this.ally.hp<=0)this.finish(false,'Напарник пал. Держись ближе и встречай выстрелы щитом.');
  }
@@ -663,6 +682,18 @@ export class Game{
  thinkPiranha(e,aim,dt){
   const d=dist(e,aim);
   e.wind=0;
+  if(e.fence){
+   e.hiding=false;
+   if(this.netT<=0||aim.x>e.homeX+40){e.fence=false;e.leap=.28;e.cd=.8;}
+   else{
+    e.x=e.homeX;
+    const gap=this.netGap;
+    if(Math.abs(e.homeY-gap)<56)e.y+=(e.homeY<gap?-90:90)*dt;
+    else e.y=e.homeY+Math.sin(this.time*4+e.homeY)*8;
+    if(d<36)this.hit(aim,8,e);
+    return;
+   }
+  }
   if(d>250){e.hiding=true;return;}
   if(e.hiding){
    e.hiding=false;
@@ -717,77 +748,206 @@ export class Game{
   }
   if(d<55&&e.cd<=.8){e.cd=1.2;this.hit(aim,10,e);}
  }
+ startBeat(kind){
+  const p=this.player;
+  const t=reefTunnel(p.x+80);
+  this.shake=Math.max(this.shake,.28);
+  if(kind==='snap'){
+   this.hazards.push({kind:'coral',x:p.x+110,y:t.y+16,r:72,wait:.16,life:.6,dmg:16,armed:false,struck:false});
+   this.hazards.push({kind:'coral',x:p.x+110,y:t.y+t.h-16,r:72,wait:.16,life:.6,dmg:16,armed:false,struck:false});
+  }else if(kind==='darklash'){
+   this.dark=2.5;
+   this.spawn('eel',p.x+170,t.mid,{hiding:false,leap:.55,cd:0,homeX:p.x+170,homeY:t.mid});
+  }else if(kind==='net'){
+   this.netT=5.2;
+   this.netGap=t.mid;
+   for(let i=0;i<9;i++){
+    const y=t.y+24+i*((t.h-48)/8);
+    this.spawn('piranha',p.x+260,y,{fence:true,hiding:false,homeX:p.x+260,homeY:y});
+   }
+  }else if(kind==='rip'){
+   this.rip=1.15;
+   this.pullX=-280;
+  }else if(kind==='clam'){
+   this.hazards.push({kind:'coral',x:p.x+30,y:t.y+t.h-8,r:96,wait:.1,life:.75,dmg:18,armed:false,struck:false});
+  }else if(kind==='shock'){
+   this.dark=.55;
+   for(const y of [t.mid-80,t.mid+80])this.hazards.push({kind:'shock',x:p.x+90,y,r:40,wait:.06,life:1,dmg:15,armed:false,struck:false});
+   this.spawn('eel',p.x+50,t.y+36,{hiding:false,leap:.4,cd:0,homeX:p.x+50,homeY:t.y+36});
+  }else if(kind==='whirl'){
+   this.whirl=2.4;
+   this.whirlX=p.x+80;
+   this.whirlY=t.mid;
+   this.shake=.45;
+  }else if(kind==='decoy'){
+   this.decoy=1.45;
+   this.dark=1.35;
+  }else if(kind==='squeeze'){
+   this.hazards.push({kind:'coral',x:p.x+60,y:t.y+8,r:86,wait:.08,life:.85,dmg:15,armed:false,struck:false});
+   this.hazards.push({kind:'coral',x:p.x+60,y:t.y+t.h-8,r:86,wait:.08,life:.85,dmg:15,armed:false,struck:false});
+  }
+ }
+ updateReefBeats(dt){
+  if(this.mission!=='reef')return;
+  this.dark=Math.max(0,this.dark-dt);
+  this.shake=Math.max(0,this.shake-dt);
+  this.whirl=Math.max(0,this.whirl-dt);
+  this.netT=Math.max(0,this.netT-dt);
+  this.rip=Math.max(0,this.rip-dt);
+  this.decoy=Math.max(0,this.decoy-dt);
+  if(this.netT>0)this.netGap=500+Math.sin(this.time*1.6)*150;
+  if(this.rip>0)this.pullX=this.rip>.55?-280:240;
+  else this.pullX*=Math.max(0,1-dt*3);
+  this.pullY*=Math.max(0,1-dt*3);
+  if(this.decoy>0&&this.decoy-dt<=0){
+   const p=this.player,t=reefTunnel(p.x);
+   for(let i=0;i<8;i++)this.spawn('piranha',p.x+40+i*18,t.mid-70+i*18,{hiding:false,leap:.35,cd:0,homeX:p.x+80,homeY:t.mid});
+   this.shake=.4;
+  }
+  if(this.whirl>0){
+   const p=this.player;
+   const a=Math.atan2(p.y-this.whirlY,p.x-this.whirlX)+2.4*dt;
+   const r=Math.max(36,dist(p,{x:this.whirlX,y:this.whirlY})-18*dt);
+   const nx=this.whirlX+Math.cos(a)*r,ny=this.whirlY+Math.sin(a)*r;
+   move(p,nx-p.x,ny-p.y);
+  }
+  for(const b of this.beats){
+   if(b.done||this.player.x<b.x)continue;
+   b.done=true;
+   this.startBeat(b.kind);
+  }
+ }
+ placeLure(e){
+  const flash=e.lureFlash>0;
+  const swing=e.move==='strike'?1.15:.9;
+  const a=e.angle-(flash?.2:.85);
+  e.lure={x:e.x+Math.cos(a)*96*swing,y:e.y+Math.sin(a)*72*swing-18};
+  if(e.bundleBroken){
+   const b=e.angle+1.1;
+   e.fakeLure={x:e.x+Math.cos(b)*90,y:e.y+Math.sin(b)*70-10};
+  }else e.fakeLure=null;
+ }
+ cutLure(e){
+  if((e.lureFlash||0)<=0){
+   this.effect(e.lure.x,e.lure.y-18,'ЛОВУШКА','#b8323a');
+   e.move='strike';
+   e.chargeT=.52;
+   e.cd=1.05;
+   this.shake=.42;
+   return;
+  }
+  e.lureHits=(e.lureHits||0)+1;
+  e.lureFlash=0;
+  this.effect(e.lure.x,e.lure.y-22,'ПРИМАНКА','#ffe27a');
+  this.shake=.22;
+  const need=e.bundleBroken?3:2;
+  if(e.lureHits>=need){
+   e.lureHits=0;
+   e.move='inhale';
+   e.chargeT=1.6;
+   e.cd=1.75;
+   e.open=1.6;
+   this.emit('Затягивает! В сторону — жабры. Или внутрь — бей сердце.');
+  }
+ }
  mawSpit(e,aim,rage){
   const a=Math.atan2(aim.y-e.y,aim.x-e.x);
   const n=rage?5:3;
   for(let i=0;i<n;i++){
    const angle=a+(i-(n-1)/2)*.2;
-   this.bullets.push({x:e.x+Math.cos(angle)*44,y:e.y+Math.sin(angle)*44,dx:Math.cos(angle),dy:Math.sin(angle),speed:rage?250:210,life:2.4,friendly:false,damage:rage?13:10,kind:'spine',r:10});
+   this.bullets.push({x:e.x+Math.cos(angle)*44,y:e.y+Math.sin(angle)*44,dx:Math.cos(angle),dy:Math.sin(angle),speed:rage?280:230,life:2.2,friendly:false,damage:rage?13:10,kind:'spine',r:10});
   }
   this.effects.push({x:e.x,y:e.y-28,text:'',color:'#3aa0a8',t:.16,max:.16,flash:true});
- }
- mawInk(e,aim,rage){
-  const spots=[{x:aim.x,y:aim.y}];
-  const n=rage?8:6;
-  for(let i=0;i<n;i++){
-   const a=i/n*Math.PI*2;
-   spots.push({x:aim.x+Math.cos(a)*120,y:aim.y+Math.sin(a)*90});
-  }
-  for(const s of spots)this.hazards.push({kind:'ink',x:s.x,y:s.y,r:rage?48:40,wait:rage?.08:.14,life:.5,dmg:rage?16:13,armed:false,struck:false});
  }
  thinkMaw(e,aim,dt){
   e.open=Math.max(0,(e.open||0)-dt);
   e.chargeT=Math.max(0,(e.chargeT||0)-dt);
+  e.lureFlash=Math.max(0,(e.lureFlash||0)-dt);
   if(!e.bundleBroken&&e.hp<=e.maxHp*.5){
    e.bundleBroken=true;
-   e.open=1.6;
-   e.wind=0;
-   e.move='recover';
-   this.emit('Пасть в ярости! Бей в свет приманки.');
+   e.move='strike';
+   e.chargeT=.55;
+   e.cd=1.1;
+   e.open=0;
+   this.dark=1.8;
+   this.emit('Два огонька. Мигает только живой. Второй — зубы.');
    this.effect(e.x,e.y-110,'ЯРОСТЬ','#1fa0b8');
   }
   const rage=!!e.bundleBroken;
   const d=dist(e,aim);
-  if(d<720)e.active=true;
-  if(!e.active||e.stagger>0)return;
+  if(this.reefArena()||d<820)e.active=true;
+  if(!e.active)return;
+  if(!e.move||e.move==='idle'||e.move==='recover'||e.move==='ink'||e.move==='spit'||e.move==='open')e.move='circle';
+  this.placeLure(e);
+  if(this.swallowed&&e.move==='belly'){
+   aim.x=e.x-Math.cos(e.angle)*12;
+   aim.y=e.y;
+   this.player.x=aim.x;
+   this.player.y=aim.y;
+   e.open=1;
+   if(e.chargeT<=0){
+    this.swallowed=false;
+    this.hit(aim,11,e);
+    move(aim,-Math.cos(e.angle)*90,-Math.sin(e.angle)*40);
+    e.move='circle';
+    e.cd=rage?1.1:1.4;
+    e.open=0;
+    this.shake=.5;
+    this.dark=.6;
+   }
+   return;
+  }
+  if(e.move==='strike'){
+   e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+   move(e,Math.cos(e.angle)*(rage?420:340)*dt,Math.sin(e.angle)*(rage?420:340)*dt);
+   this.shake=Math.max(this.shake,.2);
+   if(d<e.r+aim.r+16)this.hit(aim,rage?22:17,e);
+   if(e.lure&&dist(aim,e.lure)<30)this.hit(aim,rage?16:12,e);
+   if(e.chargeT<=0){e.move='hang';e.cd=1.25;e.lureFlash=rage?1:1.2;e.open=0;}
+   return;
+  }
+  if(e.move==='inhale'){
+   this.shake=Math.max(this.shake,.18);
+   e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+   e.open=Math.max(e.open,.4);
+   if(d<64){
+    this.swallowed=true;
+    e.move='belly';
+    e.chargeT=2.35;
+    e.open=1;
+    this.emit('Ты внутри. Руби красное сердце!');
+    return;
+   }
+   if(e.chargeT<=0){
+    e.move='strike';
+    e.chargeT=.46;
+    e.cd=1;
+    e.open=0;
+   }
+   return;
+  }
+  if(e.move==='hang'){
+   e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+   if(d<150)move(e,-Math.cos(e.angle)*70*dt,-Math.sin(e.angle)*70*dt);
+   if(e.lureFlash<=0&&e.cd<=0){e.move='strike';e.chargeT=rage?.42:.5;e.cd=1;}
+   return;
+  }
+  if(e.move==='dark'){
+   this.dark=Math.max(this.dark,1.2);
+   if(e.cd<=0){e.move='strike';e.chargeT=.5;}
+   return;
+  }
   e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
-  if(e.move==='charge'&&e.chargeT>0){
-   move(e,Math.cos(e.angle)*(rage?240:190)*dt,Math.sin(e.angle)*(rage?240:190)*dt);
-   e.wind=.22;
-   if(d<e.r+aim.r+14)this.hit(aim,rage?20:16,e);
-   if(e.chargeT===0){e.open=rage?.9:1.3;e.wind=0;e.move='recover';}
-   return;
-  }
-  if(e.cd>0){
-   if(e.open<=0&&d>160)chase(e,aim,rage?70:52,dt);
-   return;
-  }
-  e.pattern=(e.pattern||0)+1;
-  const step=e.pattern%4;
-  if(step===0||d>280){
-   this.mawInk(e,aim,rage);
-   e.move='ink';
-   e.cd=rage?2.05:2.6;
-   e.open=rage?.75:1.1;
-   e.wind=0;
-  }else if(step===1){
-   this.mawSpit(e,aim,rage);
-   e.move='spit';
-   e.cd=rage?1.85:2.35;
-   e.open=rage?.8:1.15;
-   e.wind=0;
-  }else if(step===2){
-   e.move='open';
-   e.cd=rage?1.35:1.85;
-   e.open=rage?1.4:1.9;
-   e.wind=0;
-   this.emit('Пасть открылась! Бей приманку.');
-  }else{
-   e.move='charge';
-   e.chargeT=rage?.5:.64;
-   e.cd=rage?2.15:2.7;
-   e.open=0;
-   e.wind=.42;
+  const want={x:aim.x+Math.cos(this.time*1.1)*(rage?200:230),y:clamp(aim.y+Math.sin(this.time*1.7)*110,170,830)};
+  chase(e,want,rage?155:125,dt);
+  if(d<100){e.move='strike';e.chargeT=.48;e.cd=1;this.shake=.3;return;}
+  if(e.cd<=0){
+   e.pattern=(e.pattern||0)+1;
+   const step=e.pattern%(rage?4:3);
+   if(step===0){e.move='hang';e.cd=1.2;e.lureFlash=rage?1:1.25;}
+   else if(step===1){e.move='strike';e.chargeT=rage?.5:.58;e.cd=1.05;this.shake=.28;}
+   else if(step===2){this.mawSpit(e,aim,rage);e.cd=rage?1.2:1.5;e.move='circle';}
+   else {e.move='dark';e.cd=.55;this.dark=1.6;}
   }
  }
  fogMission(){return this.mission==='forest'||this.mission==='desert'}
@@ -840,18 +1000,29 @@ export class Game{
   else if(this.mission==='reef')p.angle=0;
   else if(l>.05)p.angle=Math.atan2(my,mx);
   if(this.mission==='reef'){
-   if(this.reefArena()){
+   if(this.swallowed&&this.maw&&this.maw.hp>0){
+    p.x=this.maw.x-Math.cos(this.maw.angle)*12;
+    p.y=this.maw.y;
+   }else if(this.reefArena()){
     const swim=st.speed*(p.shield?.42:1.05);
-    move(p,mx*swim*dt,my*swim*dt);
+    const maw=this.maw;
+    let ix=this.pullX,iy=this.pullY;
+    if(maw&&maw.move==='inhale'){
+     const a=Math.atan2(maw.y-p.y,maw.x-p.x);
+     const resist=p.shield?.35:1;
+     ix+=Math.cos(a)*200*resist;
+     iy+=Math.sin(a)*200*resist;
+    }
+    move(p,(mx*swim+ix)*dt,(my*swim+iy)*dt);
     this.wake=Math.min(this.wake,15760);
     if(p.x<this.wake)p.x=this.wake;
    }else{
     const current=p.skin==='nautilus'?108:90;
     const swim=st.speed*(p.shield?.28:.46);
-    let vx=current+mx*swim;
-    if(vx<30)vx=30;
+    let vx=current+mx*swim+this.pullX;
+    if(this.rip<=0&&vx<30)vx=30;
     const groove=reefTunnel(p.x+90);
-    let vy=my*swim*1.35;
+    let vy=my*swim*1.35+this.pullY;
     if(Math.abs(my)<.2){
      const dy=groove.mid-p.y;
      vy+=Math.max(-80,Math.min(80,dy*1.25));
@@ -860,6 +1031,7 @@ export class Game{
     if(p.x<this.wake)p.x=this.wake;
     this.wake=Math.max(this.wake,p.x-280);
    }
+   this.updateReefBeats(dt);
   }else{
    const speed=p.shield?Math.min(96,st.speed*.5):st.speed;
    move(p,mx*speed*dt,my*speed*dt);
@@ -870,9 +1042,24 @@ export class Game{
    p.cd=st.cd;
    p.swing=.42;
    p.swingA=p.angle;
-   const reach=st.range+(this.mission==='reef'?42:0);
-   for(const e of this.enemies){
-    if(e.hp>0&&dist(p,e)<reach&&visible(p,e)&&(this.mission==='reef'||Math.cos(Math.atan2(e.y-p.y,e.x-p.x)-p.angle)>.12))this.hit(e,st.dmg,p);
+   const maw=this.maw;
+   let lureCut=false;
+   if(this.mission==='reef'&&maw&&maw.hp>0&&maw.lure&&!this.swallowed){
+    const fake=maw.fakeLure&&dist(p,maw.fakeLure)<78;
+    if(fake){
+     lureCut=true;
+     this.effect(maw.fakeLure.x,maw.fakeLure.y-16,'ФАЛЬШЬ','#b8323a');
+     maw.move='strike';maw.chargeT=.5;maw.cd=1;this.shake=.4;
+    }else if(dist(p,maw.lure)<82){
+     lureCut=true;
+     this.cutLure(maw);
+    }
+   }
+   if(!lureCut){
+    const reach=st.range+(this.mission==='reef'?42:0);
+    for(const e of this.enemies){
+     if(e.hp>0&&dist(p,e)<reach&&visible(p,e)&&(this.mission==='reef'||Math.cos(Math.atan2(e.y-p.y,e.x-p.x)-p.angle)>.12))this.hit(e,st.dmg,p);
+    }
    }
    this.effects.push({x:p.x,y:p.y,text:'',color:'#f7edcc',t:.18,max:.18,swing:true,angle:p.angle,range:st.range});
   }
@@ -884,11 +1071,12 @@ export class Game{
    const d=dist(e,aim);
    if(this.mission==='reef'){
     if(e.type==='maw'){
-     if(d>780)continue;
+     if(!this.reefArena()&&d>900)continue;
     }else if(d>280)continue;
     else e.active=true;
    }else if(d<470)e.active=true;
-   if(!e.active||e.stagger>0)continue;
+   if(!e.active)continue;
+   if(e.stagger>0&&e.type!=='maw')continue;
    e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
    if(e.type==='melee'){
     if(d>45)chase(e,aim,92,dt);
@@ -1023,7 +1211,7 @@ export class Game{
    enemies:this.enemies.filter(e=>e.hp>0).length,
    warden:warden?{hp:Math.round(warden.hp),maxHp:warden.maxHp,open:warden.open>0,bundleBroken:!!warden.bundleBroken,move:warden.move}:null,
    drywind:drywind?{hp:Math.round(drywind.hp),maxHp:drywind.maxHp,open:drywind.open>0,bundleBroken:!!drywind.bundleBroken,move:drywind.move}:null,
-   maw:maw?{hp:Math.round(maw.hp),maxHp:maw.maxHp,open:maw.open>0,bundleBroken:!!maw.bundleBroken,move:maw.move}:null,
+   maw:maw?{hp:Math.round(maw.hp),maxHp:maw.maxHp,open:maw.open>0,bundleBroken:!!maw.bundleBroken,move:maw.move,lureFlash:(maw.lureFlash||0)>0,lureHits:maw.lureHits||0}:null,
    cloak:this.cloak?{x:Math.round(this.cloak.x),y:Math.round(this.cloak.y),used:!!this.cloak.used}:null,
    objective,
    kills:this.kills,

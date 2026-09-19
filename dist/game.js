@@ -101,7 +101,7 @@ function renderWardrobe(){
  $('wardrobeCopy').textContent=wardrobeIntent==='desert'
   ?'Надень облик и входи. Путь длинный: дюны, колодец, базар, храм. Пескорой бьёт снизу. Мираж без тени — фальшивка. Суховея бей в тишине. Цель — плащ Сирокко.'
   :wardrobeIntent==='reef'
-  ?'Надень облик и садись в аппарат. Течение несёт вперёд. W/S — вверх и вниз. У босса течение стихнет — тогда WASD куда хочешь. Меч видно: жми удар. Твари выскакивают из кораллов без предупреждения. Пузырь — щит со всех сторон.'
+  ?'Течение несёт вперёд, но жёлоб живой: тьма, сеть пираний, обратный поток, воронка. У Пасти не бей тушу. Жди, когда фонарь мигнёт — руби приманку. Когда затягивает: в сторону к жабрам или дай проглотить и бей сердце.'
   :wardrobeIntent==='forest'
   ?'Надень облик и входи. Страж бьёт вязанкой, брёвнами и корнями. Щит ловит брёвна, удар — когда броня открылась.'
   :(bits.length?bits.join(' · '):'Сюда приходят облики и находки, которые ты унёс с миссий.');
@@ -178,7 +178,7 @@ function pause(){
   $('cast').hidden=true;
   $('menuTitle').innerHTML='ПЕРЕДЫШКА';
   $('menuSub').textContent='МИССИЯ ПРИОСТАНОВЛЕНА';
-  $('menuCopy').textContent=game.mission==='reef'?'Течение никуда не денется. Пасть ждёт в конце жёлоба.':game.mission==='forest'?'Страж никуда не денется. Щит ловит брёвна, удар — когда вязанка открылась.':game.mission==='desert'?'Дюны никуда не уйдут. Пескорой бьёт снизу. Суховея бей в тишине.':'Соберись с мыслями. Напарник ждёт.';
+  $('menuCopy').textContent=game.mission==='reef'?'Течение никуда не денется. Не верь фонарю, пока он не мигнёт.':game.mission==='forest'?'Страж никуда не денется. Щит ловит брёвна, удар — когда вязанка открылась.':game.mission==='desert'?'Дюны никуда не уйдут. Пескорой бьёт снизу. Суховея бей в тишине.':'Соберись с мыслями. Напарник ждёт.';
   $('play').textContent='ПРОДОЛЖИТЬ';
   $('reef').hidden=true;
   $('forest').hidden=true;
@@ -422,6 +422,38 @@ function drawBlade(p){
  drawSwordShape(len,reef?11:8);
  ctx.restore();
 }
+function drawMawExtras(e){
+ if(!e.lure)return;
+ const flash=(e.lureFlash||0)>0;
+ ctx.save();
+ ctx.strokeStyle='#c8f36a99';
+ ctx.lineWidth=2;
+ ctx.beginPath();ctx.moveTo(e.x+8,e.y-28);ctx.lineTo(e.lure.x,e.lure.y);ctx.stroke();
+ ctx.shadowColor='#d8ff6a';ctx.shadowBlur=flash?28:12;
+ ctx.fillStyle=flash?'#f7ff9a':'#b6e24a';
+ ctx.beginPath();ctx.arc(e.lure.x,e.lure.y,flash?11:7,0,Math.PI*2);ctx.fill();
+ if(e.fakeLure){
+  ctx.shadowBlur=8;ctx.fillStyle='#7a9a22';
+  ctx.beginPath();ctx.arc(e.fakeLure.x,e.fakeLure.y,8,0,Math.PI*2);ctx.fill();
+ }
+ ctx.restore();
+ if(e.move==='inhale'){
+  ctx.save();ctx.strokeStyle='#8fe8ff55';ctx.lineWidth=2;
+  for(let i=0;i<6;i++){
+   const a=i/6*Math.PI*2+game.time*2;
+   ctx.beginPath();
+   ctx.moveTo(e.x+Math.cos(a)*160,e.y+Math.sin(a)*110);
+   ctx.lineTo(e.x+Math.cos(a)*40,e.y+Math.sin(a)*28);
+   ctx.stroke();
+  }
+  ctx.restore();
+ }
+ if(e.move==='strike'){
+  ctx.save();ctx.globalAlpha=.35;ctx.fillStyle='#4a1020';
+  ctx.beginPath();ctx.ellipse(e.x,e.y,90,48,e.angle,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+ }
+}
 function playerKind(){
  const s=game.player.skin;
  if(s==='spirit'||s==='molten'||s==='wood'||s==='sirocco'||s==='nautilus')return s;
@@ -558,8 +590,14 @@ function draw(){
  const tx=Math.max(0,Math.min(WORLD.w-width/zoom,focus.x-width/zoom*ahead));
  const ty=Math.max(0,Math.min(WORLD.h-height/zoom,focus.y-height/zoom*.56));
  camera.x+=(tx-camera.x)*.12;camera.y+=(ty-camera.y)*.12;
- ctx.save();ctx.scale(zoom,zoom);ctx.translate(-camera.x,-camera.y);ctx.drawImage(map,0,0);drawFog();
+ const jx=(game.shake||0)>0?Math.sin(game.time*48)*10*game.shake:0;
+ const jy=(game.shake||0)>0?Math.cos(game.time*37)*7*game.shake:0;
+ ctx.save();ctx.scale(zoom,zoom);ctx.translate(-camera.x+jx,-camera.y+jy);ctx.drawImage(map,0,0);drawFog();
  if(game.mission==='reef')drawReefWater();
+ if((game.dark||0)>0){
+  ctx.fillStyle=`rgba(2,10,18,${Math.min(.8,game.dark*.5)})`;
+  ctx.fillRect(camera.x-40,camera.y-40,width/zoom+80,height/zoom+80);
+ }
  for(const item of game.pickups){
   if(item.used||(game.fogMission()&&!game.isSeen(item.x,item.y)))continue;
   ctx.save();ctx.translate(item.x,item.y);ctx.fillStyle='#fcf7e8';ctx.strokeStyle='#6d7863';ctx.lineWidth=2;roundRect(ctx,-17,-13,34,27,4);ctx.fill();ctx.stroke();ctx.fillStyle='#ae3c40';ctx.fillRect(-3,-9,6,18);ctx.fillRect(-10,-3,20,6);ctx.restore();
@@ -572,9 +610,10 @@ function draw(){
   if(game.fogMission()&&!game.isSeen(h.x,h.y))continue;
   if(h.kind==='ink'&&!h.armed)continue;
   ctx.save();ctx.translate(h.x,h.y);
-  ctx.strokeStyle=h.kind==='sand'?(h.armed?'#d2b46acc':'#e8d29a99'):h.kind==='ink'?'#12283acc':(h.armed?'#3d7a3acc':'#6db36a99');
-  ctx.fillStyle=h.kind==='sand'?(h.armed?'#c4a05055':'#e0c57a33'):h.kind==='ink'?'#0a1828aa':(h.armed?'#2f6b2a55':'#5aa45a33');
-  ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(0,0,h.r,h.r*.7,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+  const coral=h.kind==='coral',shock=h.kind==='shock';
+  ctx.strokeStyle=shock?'#7ef0ffcc':coral?'#d4784acc':h.kind==='sand'?(h.armed?'#d2b46acc':'#e8d29a99'):h.kind==='ink'?'#12283acc':(h.armed?'#3d7a3acc':'#6db36a99');
+  ctx.fillStyle=shock?'#3ad0e066':coral?'#c45a6a88':h.kind==='sand'?(h.armed?'#c4a05055':'#e0c57a33'):h.kind==='ink'?'#0a1828aa':(h.armed?'#2f6b2a55':'#5aa45a33');
+  ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(0,0,h.r,h.r*(coral?.55:.7),0,0,Math.PI*2);ctx.fill();ctx.stroke();
   ctx.restore();
  }
  if(game.mission==='desert'&&game.cloak&&!game.cloak.used&&game.isSeen(game.cloak.x,game.cloak.y)){
@@ -585,6 +624,12 @@ function draw(){
  }
  if(game.mission==='reef'){
   if(dist(game.player,game.ally)<280)marker(game.ally.x,game.ally.y,'#2c7f92','ЖДЁТ ЗДЕСЬ');
+  if((game.decoy||0)>0){
+   ctx.save();ctx.globalAlpha=.55;ctx.fillStyle='#041018';
+   ctx.beginPath();ctx.ellipse(game.player.x+220,game.player.y,70,48,0,0,Math.PI*2);ctx.fill();
+   ctx.fillStyle='#c8f36a';ctx.beginPath();ctx.arc(game.player.x+250,game.player.y-40,7,0,Math.PI*2);ctx.fill();
+   ctx.restore();
+  }
  }else if(game.mission==='forest'){
   const warden=game.enemies.find(e=>e.type==='warden'&&e.hp>0);
   if(warden&&game.isSeen(warden.x,warden.y))marker(warden.x,warden.y,'#2f5a32',warden.open>0?'БЕЙ СЕЙЧАС':'СТРАЖ ЛЕСА');
@@ -620,6 +665,7 @@ function draw(){
   else if(game.mission==='reef'&&e.type&&e.type!=='maw'&&dist(game.player,e)>200&&(e.leap||0)<=0)ctx.globalAlpha=.4;
   drawActor(e,kind,scale);
   ctx.restore();
+  if(e.type==='maw')drawMawExtras(e);
   if(e.type==='boss'){ctx.fillStyle='#463d2c';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillText('ЖЁЛТЫЙ ШАРФ',e.x,e.y-151);}
   if(e.type==='beast'){ctx.fillStyle='#5a1d1d';ctx.font='bold 11px Arial';ctx.textAlign='center';ctx.fillText('ТВАРЬ',e.x,e.y-122);}
   if(e.type==='warden'){ctx.fillStyle='#1f3d24';ctx.font='bold 13px Arial';ctx.textAlign='center';ctx.fillText(e.bundleBroken?'СТРАЖ · ЯРОСТЬ':'СТРАЖ ЛЕСА',e.x,e.y-168);}
@@ -632,6 +678,20 @@ function draw(){
  const p=game.player;
  if(p.shield){ctx.save();ctx.translate(p.x,p.y-15);ctx.strokeStyle=game.mission==='reef'?'#7ec8e3':p.skin==='spirit'?'#b38cff':p.skin==='sirocco'?'#e6c56a':'#e7bc4e';ctx.lineWidth=7;ctx.shadowColor=game.mission==='reef'?'#7ec8e3':p.skin==='spirit'?'#9b6dff':'#efc865';ctx.shadowBlur=8;ctx.beginPath();if(game.mission==='reef')ctx.arc(0,0,48,0,Math.PI*2);else ctx.arc(0,0,44,p.angle-1.2,p.angle+1.2);ctx.stroke();ctx.restore();}
  drawBlade(p);
+ if(game.swallowed){
+  ctx.save();
+  ctx.fillStyle='#4a1018aa';
+  ctx.fillRect(camera.x-20,camera.y-20,width/zoom+40,height/zoom+40);
+  ctx.fillStyle='#ff4d4d';
+  ctx.shadowColor='#ff8080';ctx.shadowBlur=24;
+  ctx.beginPath();
+  const hx=p.x+26,hy=p.y-8;
+  ctx.moveTo(hx,hy);
+  ctx.bezierCurveTo(hx+22,hy-28,hx+48,hy+6,hx,hy+38);
+  ctx.bezierCurveTo(hx-48,hy+6,hx-22,hy-28,hx,hy);
+  ctx.fill();
+  ctx.restore();
+ }
  for(const b of game.bullets){
   if(b.kind==='log'){
    ctx.save();ctx.translate(b.x,b.y-12);ctx.rotate(Math.atan2(b.dy,b.dx));
@@ -695,7 +755,7 @@ function endScreen(){
   if(win)unlockSkin('nautilus');
   $('menuTitle').innerHTML=win?'ПАСТЬ<br><em>ПАЛА</em>':'ЕЩЁ<br><em>ПОПЫТКА?</em>';
   $('menuSub').textContent=win?'ЖЁЛОБ ПРОЙДЕН':'ВОДА СИЛЬНЕЕ';
-  $('menuCopy').textContent=win?'Пасть рифа сомкнулась. Жемчужный панцирь лежит в гардеробе.':'Аппарат треснул. Пузырь — щит со всех сторон. Пираний бей, пока они в стае. Пасть бей, когда пасть открылась.';
+  $('menuCopy').textContent=win?'Пасть рифа сомкнулась. Жемчужный панцирь лежит в гардеробе.':'Аппарат треснул. Фонарь рыбы — чаще ловушка. Руби, только когда мигает. Если затянуло — жабры сбоку или сердце внутри.';
   $('stampNum').textContent='02';
   $('stampPlace').textContent='ЖЁЛОБ';
  }else if(game.mission==='forest'){
@@ -752,15 +812,15 @@ function updateHUD(){
   $('bossHint').textContent=game.mission==='desert'
    ?(boss.open>0?'Тишина — бей сейчас!':boss.bundleBroken?'Ярость: бей в короткие паузы.':'Щит ловит песок. Бей в тишине.')
    :game.mission==='reef'
-    ?(boss.open>0?'Пасть открылась — бей!':boss.bundleBroken?'Ярость: бей в свет приманки.':'Пузырь ловит иглы. Бей, когда пасть открылась.')
+    ?(boss.move==='belly'||game.swallowed?'ВНУТРИ! Руби сердце!':boss.move==='inhale'?'Затягивает: в сторону или внутрь':(boss.lureFlash||0)>0?'Фонарь мигает — РУБИ ПРИМАНКУ':boss.move==='strike'?'Пасть рвётся! Пузырь или в сторону':'Не верь фонарю. Жди мигания.')
    :(boss.open>0?'Бей сейчас — броня открылась!':boss.bundleBroken?'Ярость: все удары проходят.':'Жди удара, потом бей.');
  }
  if(game.mission==='reef'){
   $('chapter').textContent='02 / ЖЁЛОБ';
-  $('goal').textContent=maw?(game.reefArena()?(maw.open>0?'Бей Пасть мечом сейчас!':'Подплыви и бей, когда пасть открылась'):'Плыви вперёд по жёлобу'):'Пасть пала';
+  $('goal').textContent=maw?(game.reefArena()?(game.swallowed||maw.move==='belly'?'Руби сердце внутри!':maw.move==='inhale'?'Затягивает — в сторону или внутрь':(maw.lureFlash||0)>0?'Руби мигающий фонарь!':'Не верь фонарю, жди мигания'):'Плыви вперёд по жёлобу'):'Пасть пала';
   $('allyHud').hidden=true;
   $('interact').hidden=true;
-  document.querySelector('.help-note').textContent=game.reefArena()?'Течение стихло. WASD — кругом. Подплыви слева, бей мечом':'Течение несёт вперёд. W/S вверх-вниз. Твари выскакивают внезапно. Удар — меч';
+  document.querySelector('.help-note').textContent=game.reefArena()?'Туша в чешуе. Мигает — руби свет. Затянуло — жабры или сердце':'Течение вперёд. Засады разные. Пузырь — щит со всех сторон';
  }else if(game.mission==='forest'){
   $('chapter').textContent='03 / ТЁМНЫЙ ЛЕС';
   $('goal').textContent=warden?(warden.open>0?'Бей Стража сейчас!':'Победи Стража леса'):'Страж пал';
@@ -936,6 +996,8 @@ window.redShield={
    game.player.hp=100;
    game.player.energy=100;
    maw.active=true;
+   maw.move='circle';
+   maw.cd=0.05;
    return true;
   },
   pinMawRight(){
@@ -948,16 +1010,19 @@ window.redShield={
    game.player.energy=100;
    game.wake=Math.min(game.wake,15760);
    maw.active=true;
+   maw.move='circle';
+   maw.cd=0.05;
    return true;
   },
   openMaw(){
    const maw=game.enemies.find(e=>e.type==='maw'&&e.hp>0);
    if(!maw)return false;
    maw.open=3;
+   maw.lureFlash=3;
    maw.wind=0;
    maw.chargeT=0;
-   maw.cd=2;
-   maw.move='open';
+   maw.cd=2.4;
+   maw.move='hang';
    return true;
   },
   defeatMaw(){
