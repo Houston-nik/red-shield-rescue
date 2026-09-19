@@ -1,4 +1,4 @@
-import {FORT_WORLD,FORT_WALLS,SKINS,RELICS,createMazeLevel,createForestLevel,createDesertLevel} from './levels.js';
+import {FORT_WORLD,FORT_WALLS,SKINS,RELICS,createForestLevel,createDesertLevel,createReefLevel} from './levels.js';
 
 export const WORLD={w:FORT_WORLD.w,h:FORT_WORLD.h};
 export const WALLS=FORT_WALLS.map(w=>({...w}));
@@ -135,7 +135,9 @@ export class Game{
   this.warden=null;
   this.drywind=null;
   this.cloak=null;
-  if(this.mission==='maze')this.setupMaze();
+  this.maw=null;
+  this.wake=0;
+  if(this.mission==='reef')this.setupReef();
   else if(this.mission==='forest')this.setupForest();
   else if(this.mission==='desert')this.setupDesert();
   else this.setupFort();
@@ -152,17 +154,21 @@ export class Game{
   const spots=[['melee',470,700],['melee',480,920],['shooter',825,735],['melee',1000,930],['melee',1190,450],['shooter',1220,1000],['shooter',1540,520],['melee',1780,470],['melee',2000,760],['shooter',2140,870],['melee',1960,420],['shooter',1750,960]];
   for(const [type,x,y] of spots)this.spawn(type,x,y);
  }
- setupMaze(){
-  const level=createMazeLevel();
+ setupReef(){
+  const level=createReefLevel();
   applyGeometry(level.world,level.walls);
-  this.maze=level;
-  this.player={x:level.start.x,y:level.start.y,r:22,hp:100,maxHp:100,energy:100,angle:-Math.PI/2,inv:0,cd:0,swing:0,moving:false,shield:false,skin:'warrior'};
-  this.ally={x:level.start.x+36,y:level.start.y-8,r:20,hp:100,maxHp:100,angle:-Math.PI/2,inv:0,cd:0,moving:false,waiting:true};
+  this.reef=level;
+  this.player={x:level.start.x,y:level.start.y,r:26,hp:100,maxHp:100,energy:100,angle:0,inv:0,cd:0,swing:0,moving:false,shield:false,skin:'warrior'};
+  this.ally={x:level.start.x-70,y:level.start.y+18,r:20,hp:100,maxHp:100,angle:0,inv:0,cd:0,moving:false,waiting:true};
   this.exit=level.exit;
-  this.hermit={x:level.hermit.x,y:level.hermit.y,r:22,hp:100,maxHp:100,angle:Math.PI};
+  this.hermit={x:-999,y:-999,r:22};
   this.pickups=level.pickups.map(p=>({...p}));
   this.relics=level.relics.map(r=>({...r}));
+  this.hazards=[];
+  this.wake=level.start.x-40;
   for(const e of level.enemies)this.spawn(e.type,e.x,e.y);
+  this.spawn('maw',level.maw.x,level.maw.y);
+  this.maw=this.enemies.find(e=>e.type==='maw')||null;
  }
  setupForest(){
   const level=createForestLevel();
@@ -213,7 +219,7 @@ export class Game{
    this.bonus.range+=relic.range||0;
    this.bonus.regen+=relic.regen||0;
   }
-  if(this.mission==='maze'||this.mission==='desert')this.relics=this.relics.filter(r=>!relicIds.includes(r.id));
+  if(this.mission==='desert'||this.mission==='reef')this.relics=this.relics.filter(r=>!relicIds.includes(r.id));
  }
  spawn(type,x,y,extra={}){
   const sizes={
@@ -225,6 +231,11 @@ export class Game{
    scorpion:{r:24,hp:96},
    mirage:{r:20,hp:58},
    drywind:{r:36,hp:520},
+   piranha:{r:14,hp:22},
+   jelly:{r:22,hp:48},
+   eel:{r:18,hp:54},
+   crab:{r:21,hp:70},
+   maw:{r:42,hp:560},
    melee:{r:20,hp:60},
    shooter:{r:20,hp:55}
   };
@@ -239,10 +250,10 @@ export class Game{
  }
  emit(text){this.events.push(text)}
  begin(mission='fort'){
-  this.mission=mission==='maze'?'maze':mission==='forest'?'forest':mission==='desert'?'desert':'fort';
+  this.mission=mission==='reef'?'reef':mission==='forest'?'forest':mission==='desert'?'desert':'fort';
   this.reset();
   this.state='playing';
-  if(this.mission==='maze')this.emit('Ковбой ждёт у входа. Лабиринт — твоё испытание. Найди Хранителя.');
+  if(this.mission==='reef')this.emit('Ковбой у берега. Течение несёт вперёд. Пираньи стаей. Пузырь — щит со всех сторон. В конце — Пасть рифа.');
   else if(this.mission==='forest')this.emit('Ковбой на опушке. В глубине — Страж леса. Щит ловит брёвна. Бей, когда вязанка открылась.');
   else if(this.mission==='desert')this.emit('Ковбой на опушке дюн. В храме — плащ Сирокко. Пескорои бьют из-под земли. Мираж без тени — фальшивка.');
   else this.emit('Ковбой в дальнем дворе. Щит: пробел. Удар: мышь или F.');
@@ -278,8 +289,7 @@ export class Game{
   return true;
  }
  interact(){
-  if(this.mission==='maze')return this.talkHermit();
-  if(this.mission==='forest'||this.mission==='desert')return false;
+  if(this.mission==='forest'||this.mission==='desert'||this.mission==='reef')return false;
   return this.free();
  }
  finish(win,why=''){
@@ -326,13 +336,15 @@ export class Game{
   }
   const st=this.stats();
   const sandHit=source&&(source.kind==='sand'||source.kind==='sting'||source.type==='drywind');
+  const waterHit=source&&(source.kind==='spine'||source.kind==='ink'||source.type==='piranha'||source.type==='jelly'||source.type==='eel'||source.type==='crab'||source.type==='maw');
   if(target===this.player&&target.shield){
    const a=Math.atan2(source.y-target.y,source.x-target.x);
-   const need=target.skin==='sirocco'&&sandHit?-0.25:.1;
-   if(Math.cos(a-target.angle)>need&&target.energy>=st.shieldCost){
+   const bubble=this.mission==='reef'||target.skin==='nautilus'&&waterHit;
+   const need=bubble?-1:target.skin==='sirocco'&&sandHit?-0.25:.1;
+   if((bubble||Math.cos(a-target.angle)>need)&&target.energy>=st.shieldCost){
     target.energy=Math.max(0,target.energy-st.shieldCost);
     this.blocks++;
-    this.effect(target.x,target.y-50,'ЩИТ','#b1841e');
+    this.effect(target.x,target.y-50,this.mission==='reef'?'ПУЗЫРЬ':'ЩИТ',this.mission==='reef'?'#7ec8e3':'#b1841e');
     return;
    }
   }
@@ -345,9 +357,13 @@ export class Game{
    damage=Math.max(1,Math.floor(damage*.22));
    this.effect(target.x,target.y-82,'БУРЯ','#c4a574');
   }
+  if(this.enemies.includes(target)&&target.type==='maw'&&!(target.open>0)){
+   damage=Math.max(1,Math.floor(damage*.2));
+   this.effect(target.x,target.y-90,'ЧЕШУЯ','#2a6a7a');
+  }
   target.hp=Math.max(0,target.hp-damage);
-  target.inv=target===this.player?.75:target===this.ally?.85:target.type==='warden'||target.type==='drywind'?.12:.18;
-  target.stagger=target.type==='warden'||target.type==='drywind'?.12:.25;
+  target.inv=target===this.player?.75:target===this.ally?.85:target.type==='warden'||target.type==='drywind'||target.type==='maw'?.12:.18;
+  target.stagger=target.type==='warden'||target.type==='drywind'||target.type==='maw'?.12:.25;
   this.effect(target.x,target.y-65,'−'+damage);
   if(target.hp===0&&this.enemies.includes(target)){
    this.kills++;
@@ -357,12 +373,17 @@ export class Game{
     this.finish(true);
    }else if(target.type==='drywind'){
     this.emit('Суховей стих. Плащ Сирокко лежит у алтаря. Возьми его.');
+   }else if(target.type==='maw'){
+    this.emit('Пасть рифа сомкнулась. Жемчужный панцирь твой.');
+    this.player.skin='nautilus';
+    this.chosenSkin='nautilus';
+    this.finish(true);
    }else if(target.type==='mirage'&&!target.fake){
     for(const e of this.enemies)if(e.type==='mirage'&&e.fake)e.hp=0;
     this.emit('Настоящий мираж пал.');
    }
   }
-  const lost=this.mission==='maze'?'Ты пал в коридорах. Щит к твари, удар в паузу между рогами.':this.mission==='forest'?'Страж сломал тебя. Щит ловит брёвна, удар — когда вязанка открылась.':this.mission==='desert'?'Пустыня забрала тебя. Пескорой бьёт снизу. Мираж без тени — фальшивка. Суховея бей в тишине.':'Воин пал. Поднимай щит перед выстрелом и наступай во время перезарядки.';
+  const lost=this.mission==='reef'?'Аппарат треснул. Пузырь — щит со всех сторон. Пираний бей, пока они в стае. Пасть бей, когда пасть открылась.':this.mission==='forest'?'Страж сломал тебя. Щит ловит брёвна, удар — когда вязанка открылась.':this.mission==='desert'?'Пустыня забрала тебя. Пескорой бьёт снизу. Мираж без тени — фальшивка. Суховея бей в тишине.':'Воин пал. Поднимай щит перед выстрелом и наступай во время перезарядки.';
   if(this.player.hp<=0)this.finish(false,lost);
   else if(this.mission==='fort'&&this.ally.hp<=0)this.finish(false,'Напарник пал. Держись ближе и встречай выстрелы щитом.');
  }
@@ -638,7 +659,131 @@ export class Game{
    this.emit('Суховей несётся. Шагни в сторону.');
   }
  }
- fogMission(){return this.mission==='maze'||this.mission==='forest'||this.mission==='desert'}
+ thinkPiranha(e,aim,dt){
+  const d=dist(e,aim);
+  e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+  if(d>36)chase(e,aim,e.leap>0?260:165,dt);
+  if(d<210&&d>50&&e.cd<=0){e.leap=.28;e.cd=1.45;e.wind=.2;}
+  else e.wind=e.leap>0?.18:0;
+  if(d<42&&e.cd<=1){e.cd=1.05;this.hit(aim,7,e);}
+ }
+ thinkJelly(e,aim,dt){
+  const d=dist(e,aim);
+  e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+  chase(e,{x:e.homeX,y:aim.y*0.15+e.homeY*0.85},28,dt);
+  if(e.cd<=0){
+   e.cd=2.3;
+   e.wind=.4;
+   this.hazards.push({kind:'ink',x:e.x,y:e.y,r:54,wait:.35,life:.7,dmg:12,armed:false,struck:false});
+   this.effect(e.x,e.y-70,'~','#3aa0a8');
+  }
+  if(d<48&&e.wind>0)this.hit(aim,9,e);
+ }
+ thinkEel(e,aim,dt){
+  const d=dist(e,aim);
+  e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+  if(e.leap>0){
+   move(e,Math.cos(e.angle)*280*dt,Math.sin(e.angle)*280*dt);
+   e.wind=.3;
+   if(d<e.r+aim.r+6)this.hit(aim,13,e);
+   return;
+  }
+  if(d<240&&visible(e,aim)&&e.cd<=0){
+   e.leap=.46;
+   e.cd=2.1;
+   e.wind=.45;
+   this.effect(e.x,e.y-80,'!','#2ee0d0');
+  }else chase(e,{x:e.homeX,y:e.homeY},40,dt);
+ }
+ thinkCrab(e,aim,dt){
+  const d=dist(e,aim);
+  e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+  if(d>90)chase(e,aim,48,dt);
+  if(d<230&&visible(e,aim)&&e.cd<=0){
+   e.cd=2.05;
+   e.wind=.35;
+   const a=e.angle;
+   this.bullets.push({x:e.x+Math.cos(a)*24,y:e.y+Math.sin(a)*24,dx:Math.cos(a),dy:Math.sin(a),speed:260,life:1.8,friendly:false,damage:11,kind:'spine',r:8});
+  }
+  if(d<55&&e.cd<=.8){e.cd=1.2;this.hit(aim,10,e);}
+ }
+ mawSpit(e,aim,rage){
+  const a=Math.atan2(aim.y-e.y,aim.x-e.x);
+  const n=rage?5:3;
+  for(let i=0;i<n;i++){
+   const angle=a+(i-(n-1)/2)*.2;
+   this.bullets.push({x:e.x+Math.cos(angle)*44,y:e.y+Math.sin(angle)*44,dx:Math.cos(angle),dy:Math.sin(angle),speed:rage?250:210,life:2.4,friendly:false,damage:rage?13:10,kind:'spine',r:10});
+  }
+  this.effects.push({x:e.x,y:e.y-28,text:'',color:'#3aa0a8',t:.16,max:.16,flash:true});
+ }
+ mawInk(e,aim,rage){
+  const spots=[{x:aim.x,y:aim.y}];
+  const n=rage?8:6;
+  for(let i=0;i<n;i++){
+   const a=i/n*Math.PI*2;
+   spots.push({x:aim.x+Math.cos(a)*120,y:aim.y+Math.sin(a)*90});
+  }
+  for(const s of spots)this.hazards.push({kind:'ink',x:s.x,y:s.y,r:rage?48:40,wait:rage?.55:.85,life:.55,dmg:rage?16:13,armed:false,struck:false});
+ }
+ thinkMaw(e,aim,dt){
+  e.open=Math.max(0,(e.open||0)-dt);
+  e.chargeT=Math.max(0,(e.chargeT||0)-dt);
+  if(!e.bundleBroken&&e.hp<=e.maxHp*.5){
+   e.bundleBroken=true;
+   e.open=1.6;
+   e.wind=0;
+   e.move='recover';
+   this.emit('Пасть в ярости! Бей в свет приманки.');
+   this.effect(e.x,e.y-110,'ЯРОСТЬ','#1fa0b8');
+  }
+  const rage=!!e.bundleBroken;
+  const d=dist(e,aim);
+  if(d<720)e.active=true;
+  if(!e.active||e.stagger>0)return;
+  e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+  if(e.move==='charge'&&e.chargeT>0){
+   move(e,Math.cos(e.angle)*(rage?240:190)*dt,Math.sin(e.angle)*(rage?240:190)*dt);
+   e.wind=.22;
+   if(d<e.r+aim.r+14)this.hit(aim,rage?20:16,e);
+   if(e.chargeT===0){e.open=rage?.9:1.3;e.wind=0;e.move='recover';}
+   return;
+  }
+  if(e.cd>0){
+   if(e.open<=0&&d>160)chase(e,aim,rage?70:52,dt);
+   return;
+  }
+  e.pattern=(e.pattern||0)+1;
+  const step=e.pattern%4;
+  if(step===0||d>280){
+   this.mawInk(e,aim,rage);
+   e.move='ink';
+   e.cd=rage?2.05:2.6;
+   e.open=rage?.75:1.1;
+   e.wind=0;
+   this.emit('Чернильные круги! Выплыви или закрой пузырь.');
+  }else if(step===1){
+   this.mawSpit(e,aim,rage);
+   e.move='spit';
+   e.cd=rage?1.85:2.35;
+   e.open=rage?.8:1.15;
+   e.wind=0;
+   this.emit('Пасть плюёт иглами. Пузырь ловит.');
+  }else if(step===2){
+   e.move='open';
+   e.cd=rage?1.35:1.85;
+   e.open=rage?1.4:1.9;
+   e.wind=0;
+   this.emit('Пасть открылась! Бей приманку.');
+  }else{
+   e.move='charge';
+   e.chargeT=rage?.5:.64;
+   e.cd=rage?2.15:2.7;
+   e.open=0;
+   e.wind=.42;
+   this.emit('Пасть несётся. Вверх или вниз.');
+  }
+ }
+ fogMission(){return this.mission==='forest'||this.mission==='desert'}
  markSeen(force=false){
   if(!this.fogMission()&&!force)return;
   const p=this.player;
@@ -679,16 +824,27 @@ export class Game{
   if(l>1){mx/=l;my/=l;}
   const target=this.nearest(p,p.shield?440:170);
   if(target)p.angle=Math.atan2(target.y-p.y,target.x-p.x);
+  else if(this.mission==='reef')p.angle=0;
   else if(l>.05)p.angle=Math.atan2(my,mx);
-  const speed=p.shield?Math.min(96,st.speed*.5):st.speed;
-  move(p,mx*speed*dt,my*speed*dt);
+  if(this.mission==='reef'){
+   const current=p.skin==='nautilus'?108:90;
+   const swim=st.speed*(p.shield?.28:.46);
+   let vx=current+mx*swim;
+   if(vx<30)vx=30;
+   move(p,vx*dt,my*swim*1.25*dt);
+   if(p.x<this.wake)p.x=this.wake;
+   this.wake=Math.max(this.wake,p.x-280);
+  }else{
+   const speed=p.shield?Math.min(96,st.speed*.5):st.speed;
+   move(p,mx*speed*dt,my*speed*dt);
+  }
   p.energy=clamp(p.energy+(p.shield?-st.energyDrain:st.energyRegen)*dt,0,100);
   if(input.attack&&p.cd<=0){
    p.shield=false;
    p.cd=st.cd;
    p.swing=.22;
    for(const e of this.enemies){
-    if(e.hp>0&&dist(p,e)<st.range&&visible(p,e)&&Math.cos(Math.atan2(e.y-p.y,e.x-p.x)-p.angle)>.12)this.hit(e,st.dmg,p);
+    if(e.hp>0&&dist(p,e)<st.range&&visible(p,e)&&(this.mission==='reef'||Math.cos(Math.atan2(e.y-p.y,e.x-p.x)-p.angle)>.12))this.hit(e,st.dmg,p);
    }
    this.effects.push({x:p.x,y:p.y,text:'',color:'#f7edcc',t:.18,max:.18,swing:true,angle:p.angle,range:st.range});
   }
@@ -698,7 +854,10 @@ export class Game{
    let aim=p;
    if(this.mission==='fort'&&this.rescued&&dist(e,this.ally)<dist(e,p)*.78)aim=this.ally;
    const d=dist(e,aim);
-   if(d<(this.mission==='maze'?380:470))e.active=true;
+   if(this.mission==='reef'){
+    if(e.type!=='maw'&&(e.x>p.x+740||e.x<p.x-260))continue;
+    e.active=true;
+   }else if(d<470)e.active=true;
    if(!e.active||e.stagger>0)continue;
    e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
    if(e.type==='melee'){
@@ -728,6 +887,16 @@ export class Game{
     this.thinkMirage(e,aim,dt);
    }else if(e.type==='drywind'){
     this.thinkDrywind(e,aim,dt);
+   }else if(e.type==='piranha'){
+    this.thinkPiranha(e,aim,dt);
+   }else if(e.type==='jelly'){
+    this.thinkJelly(e,aim,dt);
+   }else if(e.type==='eel'){
+    this.thinkEel(e,aim,dt);
+   }else if(e.type==='crab'){
+    this.thinkCrab(e,aim,dt);
+   }else if(e.type==='maw'){
+    this.thinkMaw(e,aim,dt);
    }
   }
   if(this.mission==='fort'&&this.rescued&&this.state==='playing'){
@@ -778,6 +947,7 @@ export class Game{
     this.secrets++;
     this.bonus.dmg+=relic.dmg||0;
     this.bonus.range+=relic.range||0;
+    this.bonus.regen+=relic.regen||0;
     this.effect(p.x,p.y-76,relic.name,'#c9a227');
     this.emit(relic.text);
    }
@@ -801,8 +971,9 @@ export class Game{
  snapshot(){
   const warden=this.enemies.find(e=>e.type==='warden'&&e.hp>0)||null;
   const drywind=this.enemies.find(e=>e.type==='drywind'&&e.hp>0)||null;
-  const objective=this.mission==='maze'
-   ?(this.foundHermit?'Выбери облик у Хранителя':'Найди Хранителя в лабиринте')
+  const maw=this.enemies.find(e=>e.type==='maw'&&e.hp>0)||null;
+  const objective=this.mission==='reef'
+   ?(maw?(maw.open>0?'Пасть открылась — бей!':'Плыви вперёд. В конце — Пасть рифа'):'Пасть пала')
    :this.mission==='forest'
     ?(warden?(warden.bundleBroken?'Страж в ярости — бей':'Дождись открытия и бей Стража'):'Страж пал')
     :this.mission==='desert'
@@ -822,6 +993,7 @@ export class Game{
    enemies:this.enemies.filter(e=>e.hp>0).length,
    warden:warden?{hp:Math.round(warden.hp),maxHp:warden.maxHp,open:warden.open>0,bundleBroken:!!warden.bundleBroken,move:warden.move}:null,
    drywind:drywind?{hp:Math.round(drywind.hp),maxHp:drywind.maxHp,open:drywind.open>0,bundleBroken:!!drywind.bundleBroken,move:drywind.move}:null,
+   maw:maw?{hp:Math.round(maw.hp),maxHp:maw.maxHp,open:maw.open>0,bundleBroken:!!maw.bundleBroken,move:maw.move}:null,
    cloak:this.cloak?{x:Math.round(this.cloak.x),y:Math.round(this.cloak.y),used:!!this.cloak.used}:null,
    objective,
    kills:this.kills,

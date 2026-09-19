@@ -26,9 +26,9 @@ export function createAtmosphere(){
   [146.83,.11],[207.65,.11],[311.13,.16],[0,.12],[155.56,.1],[0,.2]
  ];
  const FORT_CHORDS=[[73.4,110],[98,146.8],[87.3,116.5],[82.4,123.47]];
- const MAZE_CHORDS=[[55,77.8],[58.27,87.3],[61.74,92.5],[51.91,73.4]];
  const FOREST_CHORDS=[[49,73.4],[51.91,77.8],[55,82.4],[46.25,69.3]];
  const DESERT_CHORDS=[[61.74,92.5],[65.41,98],[58.27,87.3],[69.3,103.83]];
+ const REEF_CHORDS=[[46.25,69.3],[41.2,61.74],[49,73.4],[43.65,65.41]];
 
  function ramp(param,value,sec=.9){
   if(!ctx||!param)return;
@@ -182,7 +182,7 @@ export function createAtmosphere(){
   if(mode==='stab')return STAB;
   if(mode==='rite')return RITE;
   if(mode==='win')return WIN;
-  return place==='maze'||place==='forest'||place==='desert'?HALL:EXPLORE;
+  return place==='reef'||place==='forest'||place==='desert'?HALL:EXPLORE;
  }
 
  function setEnabled(on){
@@ -199,7 +199,7 @@ export function createAtmosphere(){
   const danger=Math.max(0,Math.min(1,mood.danger||0));
   const hurt=!!mood.hurt;
   assault=Math.max(0,Math.min(1,mood.assault||0));
-  const maze=place==='maze'||place==='forest'||place==='desert';
+  const maze=place==='reef'||place==='forest'||place==='desert';
   let vol=0.0001,root=73.4,fifth=110,grit=.025,cut=340,whisperLvl=.0016,heartVol=.028,gap=1.2,piano=.11;
   mode='explore';
 
@@ -252,7 +252,7 @@ export function createAtmosphere(){
   ramp(drones.grit.g.gain,grit,.6);
   ramp(filter.frequency,cut,assault>=.75?.15:.8);
   ramp(whisperGain.gain,whisperLvl,.6);
-  ramp(whisper.frequency,place==='desert'?493.88:place==='maze'||place==='forest'?554.4:622.3,2);
+  ramp(whisper.frequency,place==='desert'?493.88:place==='reef'?415.3:place==='forest'?554.4:622.3,2);
   ramp(pianoGain.gain,piano,.4);
   heartAmt=heartVol;
   beatGap=gap;
@@ -266,13 +266,13 @@ export function createAtmosphere(){
    nextBeat=now+beatGap;
   }
   if(now>=nextChord&&mode!=='stab'&&(mode==='explore'||mode==='rite')){
-   const list=place==='desert'?DESERT_CHORDS:place==='forest'?FOREST_CHORDS:place==='maze'?MAZE_CHORDS:FORT_CHORDS;
+   const list=place==='desert'?DESERT_CHORDS:place==='forest'?FOREST_CHORDS:place==='reef'?REEF_CHORDS:FORT_CHORDS;
    chordAt=(chordAt+1)%list.length;
    const [r,f]=list[chordAt];
    ramp(drones.root.o.frequency,r,2.2);
    ramp(drones.fifth.o.frequency,f,2.2);
    ramp(drones.sub.o.frequency,r*.5,2.2);
-   nextChord=now+7.5+(place==='maze'||place==='forest'||place==='desert'?2:0);
+   nextChord=now+7.5+(place==='reef'||place==='forest'||place==='desert'?2:0);
   }
   if(now>=nextNote){
    const seq=pattern();
