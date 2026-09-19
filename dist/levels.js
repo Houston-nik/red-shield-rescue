@@ -14,13 +14,15 @@ export const SKINS={
  spirit:{id:'spirit',name:'Лиловый страж',hint:'Щит держится дольше. Энергия течёт быстрее.',dmg:27,range:128,cd:.4,speed:188,shieldCost:5,energyDrain:2.2,energyRegen:34,regen:0},
  molten:{id:'molten',name:'Огненный клинок',hint:'Удар тяжелее, шаг чуть медленнее.',dmg:44,range:120,cd:.5,speed:168,shieldCost:9,energyDrain:5,energyRegen:18,regen:0},
  wood:{id:'wood',name:'Пьетон',hint:'Копьё достаёт дальше. Раны медленно затягиваются.',dmg:33,range:160,cd:.36,speed:204,shieldCost:8,energyDrain:3.5,energyRegen:24,regen:3.4},
- mage:{id:'mage',name:'Маг',hint:'Хранитель, которого ты нашёл. Посох достаёт далеко, раны тихо заживают.',dmg:28,range:148,cd:.41,speed:176,shieldCost:7,energyDrain:3,energyRegen:28,regen:2.4}
+ mage:{id:'mage',name:'Маг',hint:'Хранитель, которого ты нашёл. Посох достаёт далеко, раны тихо заживают.',dmg:28,range:148,cd:.41,speed:176,shieldCost:7,energyDrain:3,energyRegen:28,regen:2.4},
+ sirocco:{id:'sirocco',name:'Сирокко',hint:'Плащ режет песок. Щит дешевле против бури, шаг чуть быстрее.',dmg:31,range:122,cd:.4,speed:214,shieldCost:5,energyDrain:2.4,energyRegen:27,regen:0}
 };
 
 export const RELICS={
  ember:{id:'ember',name:'Жар копья',text:'Пасхалка: оружие вспыхнуло. Удары стали тяжелее.',dmg:10,range:0,regen:0},
  vine:{id:'vine',name:'Жила рощи',text:'Пасхалка: древко выросло. Достаёшь дальше.',dmg:0,range:28,regen:0},
- bark:{id:'bark',name:'Кора стража',text:'Трофей: кора Стража леса. Раны чуть быстрее заживают.',dmg:0,range:0,regen:1.5}
+ bark:{id:'bark',name:'Кора стража',text:'Трофей: кора Стража леса. Раны чуть быстрее заживают.',dmg:0,range:0,regen:1.5},
+ fang:{id:'fang',name:'Зуб скорпиона',text:'Пасхалка: жало колодезя. Копьё достаёт дальше.',dmg:0,range:32,regen:0}
 };
 
 export const FOREST_WORLD={w:2000,h:1400};
@@ -32,6 +34,86 @@ export const FOREST_WALLS=[
  {x:490,y:940,w:1430,h:380},
  {x:1680,y:70,w:240,h:210}
 ];
+
+export const DESERT_WORLD={w:3600,h:1600};
+
+function carveRooms(world,rooms,cell=40){
+ const cols=Math.ceil(world.w/cell),rows=Math.ceil(world.h/cell);
+ const open=Array(cols*rows).fill(false);
+ for(const r of rooms){
+  const x0=Math.max(0,Math.floor(r.x/cell));
+  const y0=Math.max(0,Math.floor(r.y/cell));
+  const x1=Math.min(cols,Math.ceil((r.x+r.w)/cell));
+  const y1=Math.min(rows,Math.ceil((r.y+r.h)/cell));
+  for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++)open[y*cols+x]=true;
+ }
+ const used=Array(cols*rows).fill(false);
+ const walls=[];
+ for(let y=0;y<rows;y++){
+  for(let x=0;x<cols;x++){
+   const i=y*cols+x;
+   if(open[i]||used[i])continue;
+   let w=1;
+   while(x+w<cols&&!open[y*cols+x+w]&&!used[y*cols+x+w])w++;
+   let h=1;
+   grow:while(y+h<rows){
+    for(let xx=0;xx<w;xx++)if(open[(y+h)*cols+x+xx]||used[(y+h)*cols+x+xx])break grow;
+    h++;
+   }
+   for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++)used[(y+yy)*cols+x+xx]=true;
+   walls.push({x:x*cell,y:y*cell,w:w*cell,h:h*cell});
+  }
+ }
+ return walls;
+}
+
+export function createDesertLevel(){
+ const world={...DESERT_WORLD};
+ const rooms=[
+  {x:80,y:1100,w:520,h:380},
+  {x:540,y:1240,w:1160,h:250},
+  {x:1420,y:400,w:300,h:890},
+  {x:1660,y:720,w:680,h:300},
+  {x:1760,y:70,w:400,h:700},
+  {x:2280,y:640,w:660,h:540},
+  {x:2680,y:70,w:260,h:640},
+  {x:2900,y:70,w:580,h:660}
+ ];
+ const walls=carveRooms(world,rooms,40);
+ walls.push(
+  {x:1920,y:260,w:80,h:80},
+  {x:1490,y:760,w:100,h:36},
+  {x:2470,y:900,w:88,h:48},
+  {x:2710,y:1040,w:96,h:44},
+  {x:3060,y:180,w:40,h:140},
+  {x:3380,y:180,w:40,h:140}
+ );
+ const start={x:280,y:1280};
+ return {
+  world,
+  walls,
+  start,
+  exit:start,
+  well:{x:2080,y:180},
+  bazaar:{x:2580,y:880},
+  temple:{x:3200,y:360},
+  drywind:{x:3180,y:400},
+  cloak:{x:3280,y:250},
+  pickups:[{x:420,y:1280,used:false},{x:1540,y:680,used:false},{x:2520,y:720,used:false}],
+  relics:[{...RELICS.fang,x:1860,y:130,used:false}],
+  enemies:[
+   {type:'burrow',x:780,y:1350},
+   {type:'burrow',x:1180,y:1365},
+   {type:'burrow',x:1540,y:920},
+   {type:'vulture',x:1540,y:540},
+   {type:'vulture',x:2480,y:780},
+   {type:'vulture',x:2780,y:1000},
+   {type:'scorpion',x:2080,y:180},
+   {type:'scorpion',x:2520,y:1100},
+   {type:'mirage',x:2580,y:880}
+  ]
+ };
+}
 
 export function createForestLevel(){
  const start={x:330,y:1180};

@@ -1,4 +1,4 @@
-import {FORT_WORLD,FORT_WALLS,SKINS,RELICS,createMazeLevel,createForestLevel} from './levels.js';
+import {FORT_WORLD,FORT_WALLS,SKINS,RELICS,createMazeLevel,createForestLevel,createDesertLevel} from './levels.js';
 
 export const WORLD={w:FORT_WORLD.w,h:FORT_WORLD.h};
 export const WALLS=FORT_WALLS.map(w=>({...w}));
@@ -133,8 +133,11 @@ export class Game{
   this.hazards=[];
   this.hermit={x:0,y:0,r:22};
   this.warden=null;
+  this.drywind=null;
+  this.cloak=null;
   if(this.mission==='maze')this.setupMaze();
   else if(this.mission==='forest')this.setupForest();
+  else if(this.mission==='desert')this.setupDesert();
   else this.setupFort();
   this.markSeen(true);
  }
@@ -176,6 +179,30 @@ export class Game{
   this.spawn('warden',level.warden.x,level.warden.y);
   this.warden=this.enemies.find(e=>e.type==='warden')||null;
  }
+ setupDesert(){
+  const level=createDesertLevel();
+  applyGeometry(level.world,level.walls);
+  this.desert=level;
+  this.player={x:level.start.x,y:level.start.y,r:22,hp:100,maxHp:100,energy:100,angle:-Math.PI/2,inv:0,cd:0,swing:0,moving:false,shield:false,skin:'warrior'};
+  this.ally={x:level.start.x+42,y:level.start.y+14,r:20,hp:100,maxHp:100,angle:-Math.PI/2,inv:0,cd:0,moving:false,waiting:true};
+  this.exit=level.exit;
+  this.hermit={x:-999,y:-999,r:22};
+  this.pickups=level.pickups.map(p=>({...p}));
+  this.relics=level.relics.map(r=>({...r}));
+  this.hazards=[];
+  this.cloak={x:level.cloak.x,y:level.cloak.y,used:false};
+  for(const e of level.enemies){
+   if(e.type==='mirage')this.spawnMirage(e.x,e.y);
+   else this.spawn(e.type,e.x,e.y);
+  }
+  this.spawn('drywind',level.drywind.x,level.drywind.y);
+  this.drywind=this.enemies.find(e=>e.type==='drywind')||null;
+ }
+ spawnMirage(x,y){
+  this.spawn('mirage',x,y,{fake:false,homeX:x,homeY:y});
+  this.spawn('mirage',x+56,y-28,{fake:true,homeX:x+56,homeY:y-28});
+  this.spawn('mirage',x-48,y+36,{fake:true,homeX:x-48,homeY:y+36});
+ }
  applyCollection(skin,relicIds=[]){
   if(SKINS[skin])this.player.skin=skin;
   this.bonus={dmg:0,range:0,regen:0};
@@ -186,28 +213,38 @@ export class Game{
    this.bonus.range+=relic.range||0;
    this.bonus.regen+=relic.regen||0;
   }
-  if(this.mission==='maze')this.relics=this.relics.filter(r=>!relicIds.includes(r.id));
+  if(this.mission==='maze'||this.mission==='desert')this.relics=this.relics.filter(r=>!relicIds.includes(r.id));
  }
- spawn(type,x,y){
-  const boss=type==='boss';
-  const beast=type==='beast';
-  const warden=type==='warden';
+ spawn(type,x,y,extra={}){
+  const sizes={
+   boss:{r:26,hp:210},
+   beast:{r:23,hp:86},
+   warden:{r:34,hp:480},
+   burrow:{r:22,hp:72},
+   vulture:{r:21,hp:64},
+   scorpion:{r:24,hp:96},
+   mirage:{r:20,hp:58},
+   drywind:{r:36,hp:520},
+   melee:{r:20,hp:60},
+   shooter:{r:20,hp:55}
+  };
+  const s=sizes[type]||sizes.melee;
   this.enemies.push({
-   type,x,y,
-   r:warden?34:boss?26:beast?23:20,
-   hp:warden?480:boss?210:beast?86:type==='melee'?60:55,
-   maxHp:warden?480:boss?210:beast?86:type==='melee'?60:55,
+   type,x,y,r:s.r,hp:s.hp,maxHp:s.hp,
    cd:.8+(x%5)*.2,inv:0,angle:0,wind:0,active:false,stagger:0,moving:false,leap:0,
-   open:0,bundleBroken:false,move:'idle',pattern:0,smashIn:0,chargeT:0
+   open:0,bundleBroken:false,move:'idle',pattern:0,smashIn:0,chargeT:0,
+   buried:type==='burrow'?1.2:0,fake:!!extra.fake,homeX:extra.homeX??x,homeY:extra.homeY??y,
+   ...extra
   });
  }
  emit(text){this.events.push(text)}
  begin(mission='fort'){
-  this.mission=mission==='maze'?'maze':mission==='forest'?'forest':'fort';
+  this.mission=mission==='maze'?'maze':mission==='forest'?'forest':mission==='desert'?'desert':'fort';
   this.reset();
   this.state='playing';
   if(this.mission==='maze')this.emit('Ковбой ждёт у входа. Лабиринт — твоё испытание. Найди Хранителя.');
   else if(this.mission==='forest')this.emit('Ковбой на опушке. В глубине — Страж леса. Щит ловит брёвна. Бей, когда вязанка открылась.');
+  else if(this.mission==='desert')this.emit('Ковбой на опушке дюн. В храме — плащ Сирокко. Пескорои бьют из-под земли. Мираж без тени — фальшивка.');
   else this.emit('Ковбой в дальнем дворе. Щит: пробел. Удар: мышь или F.');
  }
  stats(){return statsFor(this.player.skin,this.bonus)}
@@ -242,7 +279,7 @@ export class Game{
  }
  interact(){
   if(this.mission==='maze')return this.talkHermit();
-  if(this.mission==='forest')return false;
+  if(this.mission==='forest'||this.mission==='desert')return false;
   return this.free();
  }
  finish(win,why=''){
@@ -277,23 +314,40 @@ export class Game{
  effect(x,y,text,color='#b8323a'){this.effects.push({x,y,text,color,t:.8,max:.8})}
  hit(target,damage,source){
   if(target.inv>0||target.hp<=0)return;
+  if(this.enemies.includes(target)&&(target.buried||0)>0){
+   this.effect(target.x,target.y-70,'ПОД ПЕСКОМ','#c4a574');
+   return;
+  }
+  if(this.enemies.includes(target)&&target.fake){
+   target.hp=0;
+   this.effect(target.x,target.y-70,'МИРАЖ','#7aa0c4');
+   this.emit('Копия рассыпалась. Ищи того, у кого есть тень.');
+   return;
+  }
   const st=this.stats();
+  const sandHit=source&&(source.kind==='sand'||source.kind==='sting'||source.type==='drywind');
   if(target===this.player&&target.shield){
    const a=Math.atan2(source.y-target.y,source.x-target.x);
-   if(Math.cos(a-target.angle)>.1&&target.energy>=st.shieldCost){
+   const need=target.skin==='sirocco'&&sandHit?-0.25:.1;
+   if(Math.cos(a-target.angle)>need&&target.energy>=st.shieldCost){
     target.energy=Math.max(0,target.energy-st.shieldCost);
     this.blocks++;
     this.effect(target.x,target.y-50,'ЩИТ','#b1841e');
     return;
    }
   }
+  if(target===this.player&&target.skin==='sirocco'&&sandHit)damage=Math.max(1,Math.floor(damage*.6));
   if(this.enemies.includes(target)&&target.type==='warden'&&!target.bundleBroken&&!(target.open>0)){
    damage=Math.max(1,Math.floor(damage*.28));
    this.effect(target.x,target.y-82,'ДРОВА','#8a6a32');
   }
+  if(this.enemies.includes(target)&&target.type==='drywind'&&!(target.open>0)){
+   damage=Math.max(1,Math.floor(damage*.22));
+   this.effect(target.x,target.y-82,'БУРЯ','#c4a574');
+  }
   target.hp=Math.max(0,target.hp-damage);
-  target.inv=target===this.player?.75:target===this.ally?.85:target.type==='warden'?.12:.18;
-  target.stagger=target.type==='warden'?.12:.25;
+  target.inv=target===this.player?.75:target===this.ally?.85:target.type==='warden'||target.type==='drywind'?.12:.18;
+  target.stagger=target.type==='warden'||target.type==='drywind'?.12:.25;
   this.effect(target.x,target.y-65,'−'+damage);
   if(target.hp===0&&this.enemies.includes(target)){
    this.kills++;
@@ -301,9 +355,15 @@ export class Game{
    if(target.type==='warden'){
     this.emit('Страж леса пал. Лес выдохнул.');
     this.finish(true);
+   }else if(target.type==='drywind'){
+    this.emit('Суховей стих. Плащ Сирокко лежит у алтаря. Возьми его.');
+   }else if(target.type==='mirage'&&!target.fake){
+    for(const e of this.enemies)if(e.type==='mirage'&&e.fake)e.hp=0;
+    this.emit('Настоящий мираж пал.');
    }
   }
-  if(this.player.hp<=0)this.finish(false,this.mission==='maze'?'Ты пал в коридорах. Щит к твари, удар в паузу между рогами.':this.mission==='forest'?'Страж сломал тебя. Щит ловит брёвна, удар — когда вязанка открылась.':'Воин пал. Поднимай щит перед выстрелом и наступай во время перезарядки.');
+  const lost=this.mission==='maze'?'Ты пал в коридорах. Щит к твари, удар в паузу между рогами.':this.mission==='forest'?'Страж сломал тебя. Щит ловит брёвна, удар — когда вязанка открылась.':this.mission==='desert'?'Пустыня забрала тебя. Пескорой бьёт снизу. Мираж без тени — фальшивка. Суховея бей в тишине.':'Воин пал. Поднимай щит перед выстрелом и наступай во время перезарядки.';
+  if(this.player.hp<=0)this.finish(false,lost);
   else if(this.mission==='fort'&&this.ally.hp<=0)this.finish(false,'Напарник пал. Держись ближе и встречай выстрелы щитом.');
  }
  fire(e,target,friendly=false){
@@ -406,21 +466,195 @@ export class Game{
    this.emit('Вязанка занесена! Отойди или закройся щитом.');
   }
  }
+ thinkBurrow(e,aim,dt){
+  const d=dist(e,aim);
+  if(d<520)e.active=true;
+  if(!e.active||e.stagger>0)return;
+  e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+  e.buried=Math.max(0,(e.buried||0)-dt);
+  if(e.buried>0){
+   chase(e,aim,170,dt);
+   e.wind=0;
+   if(d<58&&e.buried<.2){e.buried=0;e.wind=.28;e.cd=.35;}
+   return;
+  }
+  e.wind=Math.max(e.wind,.12);
+  if(d<68&&visible(e,aim)&&e.cd<=0){
+   e.cd=1.55;
+   this.hit(aim,12,e);
+   e.buried=2.1;
+   e.wind=0;
+   this.effect(e.x,e.y-80,'↓','#c4a574');
+  }else if(d>95)e.buried=1.4;
+  else chase(e,aim,70,dt);
+ }
+ thinkVulture(e,aim,dt){
+  const d=dist(e,aim);
+  if(d<560)e.active=true;
+  if(!e.active||e.stagger>0)return;
+  e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+  if(e.leap>0){
+   move(e,Math.cos(e.angle)*310*dt,Math.sin(e.angle)*310*dt);
+   e.wind=.25;
+   if(d<e.r+aim.r+8)this.hit(aim,15,e);
+   return;
+  }
+  if(d<140)move(e,-Math.cos(e.angle)*80*dt,-Math.sin(e.angle)*80*dt);
+  else if(d>240||!visible(e,aim))chase(e,aim,88,dt);
+  else{
+   const side=d>1?{x:e.x-(aim.y-e.y)/d*70,y:e.y+(aim.x-e.x)/d*70}:aim;
+   chase(e,side,70,dt);
+  }
+  if(d<280&&d>70&&visible(e,aim)&&e.cd<=0){
+   e.leap=.42;
+   e.cd=2.15;
+   e.wind=.4;
+   this.effect(e.x,e.y-90,'!','#8a1f1f');
+  }else if(e.leap<=0)e.wind=e.cd<.4?.2:0;
+ }
+ scorpionSting(e,aim){
+  const a=e.angle;
+  this.bullets.push({x:e.x+Math.cos(a)*36,y:e.y+Math.sin(a)*36,dx:Math.cos(a),dy:Math.sin(a),speed:340,life:.7,friendly:false,damage:16,kind:'sting',r:13});
+  if(dist(e,aim)<210&&Math.cos(Math.atan2(aim.y-e.y,aim.x-e.x)-a)>.45&&visible(e,aim))this.hit(aim,16,e);
+  this.effects.push({x:e.x,y:e.y,text:'',color:'#c4a574',t:.2,max:.2,swing:true,angle:a,range:210});
+ }
+ thinkScorpion(e,aim,dt){
+  const stingWas=e.smashIn||0;
+  e.smashIn=Math.max(0,stingWas-dt);
+  const d=dist(e,aim);
+  if(d<520)e.active=true;
+  if(!e.active||e.stagger>0)return;
+  e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+  if(stingWas>0&&e.smashIn===0)this.scorpionSting(e,aim);
+  if(e.smashIn>0){e.wind=e.smashIn;return;}
+  if(d>160)chase(e,aim,62,dt);
+  else if(d<90)move(e,-Math.cos(e.angle)*40*dt,-Math.sin(e.angle)*40*dt);
+  if(e.cd<=0&&d<230&&visible(e,aim)){
+   e.smashIn=.48;
+   e.cd=2.2;
+   e.wind=.48;
+   this.emit('Жало! Отойди с линии или закройся щитом.');
+  }
+ }
+ thinkMirage(e,aim,dt){
+  const d=dist(e,aim);
+  if(d<500)e.active=true;
+  if(!e.active||e.stagger>0)return;
+  const real=this.enemies.find(o=>o.type==='mirage'&&!o.fake&&o.hp>0);
+  if(e.fake){
+   if(!real){e.hp=0;return;}
+   chase(e,{x:real.x+(e.homeX-real.homeX),y:real.y+(e.homeY-real.homeY)},110,dt);
+   e.angle=real.angle;
+   return;
+  }
+  e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+  if(d>48)chase(e,aim,96,dt);
+  if(d<62&&visible(e,aim)&&e.cd<=0){e.cd=1.3;this.hit(aim,10,e);}
+  e.cdFake=(e.cdFake||0)-dt;
+  if(e.cdFake<=0){
+   e.cdFake=5;
+   const fakes=this.enemies.filter(o=>o.type==='mirage'&&o.fake&&o.hp>0).length;
+   if(fakes<2){
+    const nx=e.x+40-Math.random()*80,ny=e.y+40-Math.random()*80;
+    this.spawn('mirage',nx,ny,{fake:true,homeX:nx,homeY:ny});
+    this.emit('Мираж размножился. Бей того, у кого тень.');
+   }
+  }
+ }
+ drywindGust(e,aim,rage){
+  const a=Math.atan2(aim.y-e.y,aim.x-e.x);
+  const n=rage?6:4;
+  for(let i=0;i<n;i++){
+   const angle=a+(i-(n-1)/2)*(rage?.16:.2);
+   this.bullets.push({x:e.x+Math.cos(angle)*40,y:e.y+Math.sin(angle)*40,dx:Math.cos(angle),dy:Math.sin(angle),speed:rage?260:210,life:2.6,friendly:false,damage:rage?14:11,kind:'sand',r:11});
+  }
+  this.effects.push({x:e.x,y:e.y-28,text:'',color:'#d2b46a',t:.16,max:.16,flash:true});
+ }
+ drywindRing(e,aim,rage){
+  const n=rage?10:8;
+  const rad=rage?150:130;
+  const spots=[{x:aim.x,y:aim.y}];
+  for(let i=0;i<n;i++){
+   const a=i/n*Math.PI*2;
+   spots.push({x:aim.x+Math.cos(a)*rad,y:aim.y+Math.sin(a)*rad});
+  }
+  for(const s of spots)this.hazards.push({kind:'sand',x:s.x,y:s.y,r:rage?50:42,wait:rage?.65:.9,life:.5,dmg:rage?17:14,armed:false,struck:false});
+ }
+ thinkDrywind(e,aim,dt){
+  e.open=Math.max(0,(e.open||0)-dt);
+  e.chargeT=Math.max(0,(e.chargeT||0)-dt);
+  if(!e.bundleBroken&&e.hp<=e.maxHp*.5){
+   e.bundleBroken=true;
+   e.open=1.7;
+   e.wind=0;
+   e.move='recover';
+   this.emit('Буря рванула! Суховей в ярости — бей в тишине.');
+   this.effect(e.x,e.y-96,'ЯРОСТЬ','#d27a22');
+  }
+  const rage=!!e.bundleBroken;
+  const d=dist(e,aim);
+  if(d<620)e.active=true;
+  if(!e.active||e.stagger>0)return;
+  e.angle=Math.atan2(aim.y-e.y,aim.x-e.x);
+  if(e.move==='charge'&&e.chargeT>0){
+   move(e,Math.cos(e.angle)*(rage?280:230)*dt,Math.sin(e.angle)*(rage?280:230)*dt);
+   e.wind=.2;
+   if(d<e.r+aim.r+12)this.hit(aim,rage?18:15,e);
+   if(e.chargeT===0){e.open=rage?.85:1.25;e.wind=0;e.move='recover';}
+   return;
+  }
+  if(e.cd>0){
+   if(e.open<=0&&d>150)chase(e,aim,rage?78:60,dt);
+   return;
+  }
+  e.pattern=(e.pattern||0)+1;
+  const step=e.pattern%4;
+  if(step===0||d>250){
+   this.drywindRing(e,aim,rage);
+   e.move='ring';
+   e.cd=rage?2:2.55;
+   e.open=rage?.7:1.05;
+   e.wind=0;
+   this.emit('Песчаное кольцо! Выйди из кругов, щит ловит песок.');
+  }else if(step===1){
+   this.drywindGust(e,aim,rage);
+   e.move='gust';
+   e.cd=rage?1.9:2.4;
+   e.open=rage?.8:1.15;
+   e.wind=0;
+   this.emit('Суховей плюёт песком. Подними щит.');
+  }else if(step===2){
+   e.move='quiet';
+   e.cd=rage?1.4:1.9;
+   e.open=rage?1.35:1.8;
+   e.wind=0;
+   this.emit('Тишина! Бей Суховея сейчас.');
+  }else{
+   e.move='charge';
+   e.chargeT=rage?.48:.62;
+   e.cd=rage?2.1:2.6;
+   e.open=0;
+   e.wind=.4;
+   this.emit('Суховей несётся. Шагни в сторону.');
+  }
+ }
+ fogMission(){return this.mission==='maze'||this.mission==='forest'||this.mission==='desert'}
  markSeen(force=false){
-  if(this.mission!=='maze'&&this.mission!=='forest'&&!force)return;
+  if(!this.fogMission()&&!force)return;
   const p=this.player;
   const step=48;
+  const sight=this.mission==='desert'?(p.skin==='sirocco'?205:138):175;
   this.seen.add(`${Math.floor(p.x/step)},${Math.floor(p.y/step)}`);
-  for(let x=p.x-170;x<=p.x+170;x+=step){
-   for(let y=p.y-170;y<=p.y+170;y+=step){
-    if(dist(p,{x,y})>175)continue;
+  for(let x=p.x-sight;x<=p.x+sight;x+=step){
+   for(let y=p.y-sight;y<=p.y+sight;y+=step){
+    if(dist(p,{x,y})>sight)continue;
     if(!visible(p,{x,y}))continue;
     this.seen.add(`${Math.floor(x/step)},${Math.floor(y/step)}`);
    }
   }
  }
  isSeen(x,y){
-  if(this.mission!=='maze'&&this.mission!=='forest')return true;
+  if(!this.fogMission())return true;
   const step=48;
   return this.seen.has(`${Math.floor(x/step)},${Math.floor(y/step)}`);
  }
@@ -484,6 +718,16 @@ export class Game{
     }
    }else if(e.type==='warden'){
     this.thinkWarden(e,aim,dt);
+   }else if(e.type==='burrow'){
+    this.thinkBurrow(e,aim,dt);
+   }else if(e.type==='vulture'){
+    this.thinkVulture(e,aim,dt);
+   }else if(e.type==='scorpion'){
+    this.thinkScorpion(e,aim,dt);
+   }else if(e.type==='mirage'){
+    this.thinkMirage(e,aim,dt);
+   }else if(e.type==='drywind'){
+    this.thinkDrywind(e,aim,dt);
    }
   }
   if(this.mission==='fort'&&this.rescued&&this.state==='playing'){
@@ -503,7 +747,7 @@ export class Game{
     if(blocked(b.x,b.y,4)){b.life=0;break;}
     const targets=b.friendly?this.enemies:[p,...(this.mission==='fort'&&this.rescued?[this.ally]:[])];
     for(const t of targets){
-     if(t.hp>0&&dist(b,t)<t.r+(b.r||7)){this.hit(t,b.damage,{x:b.x-b.dx*45,y:b.y-b.dy*45});b.life=0;break;}
+     if(t.hp>0&&dist(b,t)<t.r+(b.r||7)){this.hit(t,b.damage,{x:b.x-b.dx*45,y:b.y-b.dy*45,kind:b.kind,type:b.kind});b.life=0;break;}
     }
    }
   }
@@ -538,15 +782,32 @@ export class Game{
     this.emit(relic.text);
    }
   }
-  if(this.mission==='maze'||this.mission==='forest')this.markSeen();
+  if(this.mission==='desert'&&this.cloak&&!this.cloak.used&&dist(p,this.cloak)<50){
+   const boss=this.enemies.find(e=>e.type==='drywind'&&e.hp>0);
+   if(boss){
+    if(!this.cloak.warned){this.cloak.warned=true;this.emit('Плащ под охраной Суховея. Сначала пережди бурю.');}
+   }else{
+    this.cloak.used=true;
+    this.player.skin='sirocco';
+    this.chosenSkin='sirocco';
+    this.effect(p.x,p.y-76,'Сирокко','#d2a04a');
+    this.emit('Ты надел плащ Сирокко. Пустыня твоя.');
+    this.finish(true);
+    return;
+   }
+  }
+  if(this.fogMission())this.markSeen();
  }
  snapshot(){
   const warden=this.enemies.find(e=>e.type==='warden'&&e.hp>0)||null;
+  const drywind=this.enemies.find(e=>e.type==='drywind'&&e.hp>0)||null;
   const objective=this.mission==='maze'
    ?(this.foundHermit?'Выбери облик у Хранителя':'Найди Хранителя в лабиринте')
    :this.mission==='forest'
     ?(warden?(warden.bundleBroken?'Страж в ярости — бей':'Дождись открытия и бей Стража'):'Страж пал')
-    :(this.rescued?'Вернитесь к воротам вместе':'Освободи ковбоя');
+    :this.mission==='desert'
+     ?(drywind?(drywind.open>0?'Тишина — бей Суховея':'Доберись до храма и бей в тишине'):(this.cloak&&!this.cloak.used?'Возьми плащ Сирокко':'Плащ твой'))
+     :(this.rescued?'Вернитесь к воротам вместе':'Освободи ковбоя');
   return{
    state:this.state,
    mission:this.mission,
@@ -560,6 +821,8 @@ export class Game{
    companion:{x:Math.round(this.ally.x),y:Math.round(this.ally.y),hp:this.ally.hp},
    enemies:this.enemies.filter(e=>e.hp>0).length,
    warden:warden?{hp:Math.round(warden.hp),maxHp:warden.maxHp,open:warden.open>0,bundleBroken:!!warden.bundleBroken,move:warden.move}:null,
+   drywind:drywind?{hp:Math.round(drywind.hp),maxHp:drywind.maxHp,open:drywind.open>0,bundleBroken:!!drywind.bundleBroken,move:drywind.move}:null,
+   cloak:this.cloak?{x:Math.round(this.cloak.x),y:Math.round(this.cloak.y),used:!!this.cloak.used}:null,
    objective,
    kills:this.kills,
    blocks:this.blocks

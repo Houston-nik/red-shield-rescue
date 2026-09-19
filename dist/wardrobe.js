@@ -3,8 +3,8 @@ import {SKINS,RELICS} from './levels.js';
 const KEY='redShield.wardrobe';
 const OLD_SKIN='redShield.skin';
 
-export const WARDROBE_SKINS=['warrior','mage','spirit','molten','wood'];
-export const WARDROBE_RELICS=['ember','vine','bark'];
+export const WARDROBE_SKINS=['warrior','mage','spirit','molten','wood','sirocco'];
+export const WARDROBE_RELICS=['ember','vine','bark','fang'];
 
 function empty(){
  return {skins:['warrior'],relics:[],mage:false,equipped:'warrior'};
@@ -85,7 +85,7 @@ export function skinMeta(id){
 export function relicMeta(id){
  const base=RELICS[id];
  if(!base)return null;
- const hint=id==='ember'?'Удары становятся тяжелее.':id==='vine'?'Копьё достаёт дальше.':'После боя со Стражем. Раны чуть быстрее заживают.';
- const locked=id==='bark'?'Победи Стража леса.':'Спрятана ближе к центру.';
+ const hint=id==='ember'?'Удары становятся тяжелее.':id==='vine'?'Копьё достаёт дальше.':id==='bark'?'После боя со Стражем. Раны чуть быстрее заживают.':'Жало из колодца. Копьё достаёт дальше.';
+ const locked=id==='bark'?'Победи Стража леса.':id==='fang'?'Северный рукав у сухого колодца.':'Спрятана ближе к центру.';
  return {...base,hint,locked};
 }
