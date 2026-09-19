@@ -352,7 +352,7 @@ function drawStick(e,kind,scale=1){
  if(e.inv>0&&Math.floor(e.inv*17)%2===0)ctx.globalAlpha=.55;
  else if(e.fake)ctx.globalAlpha=.42;
  else if((e.buried||0)>0)ctx.globalAlpha=.28;
- const flip=Math.cos(e.angle)<-.1;ctx.translate(0,-h*.42+bob);if(flip)ctx.scale(-1,1);if(e.moving)ctx.rotate(Math.sin(game.time*14)*.03);
+ const flip=kind==='craft'?true:kind==='maw'?Math.cos(e.angle)>=-.1:Math.cos(e.angle)<-.1;ctx.translate(0,-h*.42+bob);if(flip)ctx.scale(-1,1);if(e.moving)ctx.rotate(Math.sin(game.time*14)*.03);
  ctx.globalCompositeOperation='multiply';
  ctx.drawImage(img,-w/2,-h/2,w,h);
  ctx.restore();
