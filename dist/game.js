@@ -578,6 +578,7 @@ function updateHUD(){
   const near=dist(p,game.hermit)<=125&&!game.foundHermit;
   $('interact').hidden=!near||game.state!=='playing';
   $('interact').innerHTML='Говорить с Хранителем <kbd>E</kbd>';
+  document.querySelector('.help-note').textContent='Щит к твари. Удар в паузу между рогами';
  }else if(game.mission==='forest'){
   $('chapter').textContent='04 / ТЁМНЫЙ ЛЕС';
   $('goal').textContent=warden?(warden.open>0?'Бей Стража сейчас!':'Победи Стража леса'):'Страж пал';

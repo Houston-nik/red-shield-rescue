@@ -24,7 +24,7 @@ function read(){
   const legacy=localStorage.getItem(OLD_SKIN);
   if(legacy&&SKINS[legacy]&&legacy!=='warrior'){
    if(!data.skins.includes(legacy))data.skins.push(legacy);
-   data.mage=true;
+   if(legacy==='mage'||legacy==='spirit'||legacy==='molten'||legacy==='wood')data.mage=true;
    if(data.equipped==='warrior')data.equipped=legacy;
   }
  }catch{/* private mode */}
